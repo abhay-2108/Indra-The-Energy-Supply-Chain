@@ -57,11 +57,33 @@ Rather than bloating LLM context windows or passing volatile variables, INDRA us
 * Downstream agents read their dependencies' state using database queries. This keeps the execution completely **auditable**, **modular**, and **resilient**.
 
 ### 2. Multi-Agent Personas
-1. **Geopolitical Risk Intelligence Analyst**: Evaluates news logs to calculate disruption probabilities for shipping lanes and suppliers.
+1. **Geopolitical Risk Intelligence Analyst**: Evaluates news logs and local policy briefs to calculate disruption probabilities for shipping lanes and suppliers.
 2. **Disruption Scenario Modeller (Downstream Economist)**: Computes refinery run-rate cuts, days-to-stockout countdowns, power grid blackout risks, and macroeconomic GDP drag.
 3. **Adaptive Procurement Orchestrator**: Ranks alternative import options, comparing Cost-Optimized profiles with ESG-Optimized carbon surcharges.
 4. **Strategic Reserve (SPR) Optimisation Agent**: schedules emergency cavern drawdowns (Padur, Mangaluru, Visakhapatnam) to bridge the transit gap, and designs backwardation-hedged refilling schedules.
 5. **Geospatial Digital Twin Agent**: Compiles all outputs into unified map layer geometries (vessels, routes, alert zones) for frontend rendering.
+
+---
+
+## 🌟 Advanced Capabilities
+
+We have extended the core multi-agent platform with advanced security, topological intelligence, and semantic analysis features:
+
+### 1. Custom Geopolitical Intel Injector (RAG Input)
+* In the **Control Center**, users can input custom news headlines or intelligence briefings (e.g. *"Drone strikes disrupt loading terminals at Basrah Port"*).
+* The **Geopolitical Risk Agent** dynamically parses this custom input, mapping it to routes and refineries, overriding database defaults, and triggering a customized multi-agent simulation chain.
+
+### 2. Interactive Network Knowledge Graph (Phase 6)
+* A dedicated **Network Knowledge Graph** tab is integrated under the **Asset Directory** (`/infrastructure`).
+* Visualizes the complete 5-column supply chain topology: `Suppliers` ➔ `Transit Corridors` ➔ `Active Shipments` ➔ `Refineries` ➔ `Strategic Reserves (SPR)`.
+* **State Propagation**: Propagates color codes based on real-time simulation states (e.g., Strait of Hormuz blocked ➔ Middle East tankers blocked ➔ refineries stressed ➔ SPR caverns drawn down).
+* **Hover Highlights**: Interactively highlights selected supply flow paths using SVG cubic Bezier curve illumination.
+
+### 3. Intel Briefings & Vector Store (RAG Library)
+* A new **Intel Briefings** section (`/briefings`) allows operators to upload intelligence documents, warning memos, or policy PDFs (`.pdf`, `.txt`, `.md`).
+* **Document Ingestion**: Splits documents into overlapping text chunks and computes vector embeddings. Uses Gemini API (`text-embedding-004`) when online, falls back to Ollama (`qwen2.5`), and runs a character-hash local fallback if offline.
+* **Vector Search Playground**: Provides a direct Semantic Search interface showing match percentage meters and matching text excerpts using cosine similarity.
+* **Agentic Tool Integration**: Exposes the `Search Briefings Library` tool to the Geopolitical Risk Agent, allowing it to autonomously cross-reference policy guidelines or historical precedents during simulations.
 
 ---
 
@@ -84,6 +106,7 @@ Rather than bloating LLM context windows or passing volatile variables, INDRA us
 │   ├── src/app/                  # App Router Pages
 │   │   ├── page.tsx              # Control Center (Map + Tickers)
 │   │   ├── infrastructure/       # Refining, SPR, & Supplier Directory
+│   │   ├── briefings/            # RAG briefings management & search playground
 │   │   ├── risk/                 # Geopolitical Threat charts
 │   │   ├── scenario/             # Run-rate & downstream impact charts
 │   │   ├── procurement/          # Sourcing & Logistics rankings
