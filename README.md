@@ -1,12 +1,10 @@
-# INDRA: Energy Supply Chain Resilience Platform
-
-> **INDRA** (*Intel-driven Network for Disruption Resilience & Analysis*) is a Multi-Agent AI and Geospatial Digital Twin prototype designed to safeguard national energy security by orchestrating autonomous intelligence analysis, macroeconomic impact modeling, adaptive procurement, and strategic petroleum reserve releases during maritime chokepoint disruptions.
+# 🛡️ INDRA: Energy Supply Chain Resilience Platform
+> **INDRA** (*Intel-driven Network for Disruption Resilience & Analysis*) is a Multi-Agent AI and Geospatial Digital Twin platform designed to safeguard national energy security by orchestrating autonomous intelligence analysis, macroeconomic impact modeling, adaptive procurement, and strategic petroleum reserve releases during maritime chokepoint disruptions.
 
 ---
 
 ## 📌 The Problem
-
-India imports over **85% of its crude oil requirements**, leaving the national economy highly vulnerable to geopolitical shocks, port strikes, and maritime conflicts. 
+India imports over **85% of its crude oil requirements**, leaving the national economy highly vulnerable to geopolitical shocks, port strikes, and maritime conflicts.
 1. **Critical Bottlenecks (SPOFs)**: Key choke points (such as the **Strait of Hormuz** or the **Red Sea**) carry the bulk of India's crude imports. A partial or complete closure of these corridors instantly blocks tankers.
 2. **Siloed Intelligence**: Geopolitical intelligence, downstream refinery operations, global spot chartering, and strategic reserve policies are managed in isolation. When a crisis hits, response coordination takes days.
 3. **Complex Trade-offs**: Rerouting oil shipments (e.g., around the Cape of Good Hope) bypasses threat zones but increases transit times by 20+ days, spiking carbon footprints and spot prices.
@@ -14,7 +12,6 @@ India imports over **85% of its crude oil requirements**, leaving the national e
 ---
 
 ## ⚡ The Solution
-
 INDRA handles this challenge by combining a **Chained ReAct Multi-Agent System** with a **Geospatial Digital Twin** that simulates, optimizes, and visualizes resilience strategies in real time.
 
 ```mermaid
@@ -60,64 +57,46 @@ Rather than bloating LLM context windows or passing volatile variables, INDRA us
 1. **Geopolitical Risk Intelligence Analyst**: Evaluates news logs and local policy briefs to calculate disruption probabilities for shipping lanes and suppliers.
 2. **Disruption Scenario Modeller (Downstream Economist)**: Computes refinery run-rate cuts, days-to-stockout countdowns, power grid blackout risks, and macroeconomic GDP drag.
 3. **Adaptive Procurement Orchestrator**: Ranks alternative import options, comparing Cost-Optimized profiles with ESG-Optimized carbon surcharges.
-4. **Strategic Reserve (SPR) Optimisation Agent**: schedules emergency cavern drawdowns (Padur, Mangaluru, Visakhapatnam) to bridge the transit gap, and designs backwardation-hedged refilling schedules.
+4. **Strategic Reserve (SPR) Optimisation Agent**: Schedules emergency cavern drawdowns (Padur, Mangaluru, Visakhapatnam) to bridge the transit gap, and designs backwardation-hedged refilling schedules.
 5. **Geospatial Digital Twin Agent**: Compiles all outputs into unified map layer geometries (vessels, routes, alert zones) for frontend rendering.
 
 ---
 
-## 🌟 Advanced Capabilities
+## 🛠️ Tech Stack & Architecture
 
-We have extended the core multi-agent platform with advanced security, topological intelligence, and semantic analysis features:
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Frontend UI** | Next.js 16 (React 19, TypeScript), TailwindCSS | High-performance, dark-theme geospatial operations dashboard |
+| **Geospatial Map** | React-Leaflet, Leaflet | Live AIS vessel mapping, threat boundary zones, and route polylines |
+| **Data Graphs** | Recharts, SVG Bezier Flows | Interactive supply-chain knowledge graph and telemetry charts |
+| **Backend API**| FastAPI, Uvicorn | High-throughput REST API serving telemetry and triggering simulations |
+| **Agent Engine** | CrewAI, LangChain, SQLite Logs | Sequential reasoning agent chains using Database State Communication |
+| **Embeddings & LLM**| Gemini API (`text-embedding-004`), NVIDIA NIM | High-fidelity LLM inference and document embedding generation |
+| **Databases** | SQLite (`supply_chain.db`), LanceDB | System telemetry database & semantic vector database (RAG) |
+
+---
+
+## 🌟 Advanced Capabilities & Hardening
 
 ### 1. Custom Geopolitical Intel Injector (RAG Input)
 * In the **Control Center**, users can input custom news headlines or intelligence briefings (e.g. *"Drone strikes disrupt loading terminals at Basrah Port"*).
 * The **Geopolitical Risk Agent** dynamically parses this custom input, mapping it to routes and refineries, overriding database defaults, and triggering a customized multi-agent simulation chain.
 
-### 2. Interactive Network Knowledge Graph (Phase 6)
-* A dedicated **Network Knowledge Graph** tab is integrated under the **Asset Directory** (`/infrastructure`).
+### 2. Interactive Topological Knowledge Graph
 * Visualizes the complete 5-column supply chain topology: `Suppliers` ➔ `Transit Corridors` ➔ `Active Shipments` ➔ `Refineries` ➔ `Strategic Reserves (SPR)`.
 * **State Propagation**: Propagates color codes based on real-time simulation states (e.g., Strait of Hormuz blocked ➔ Middle East tankers blocked ➔ refineries stressed ➔ SPR caverns drawn down).
 * **Hover Highlights**: Interactively highlights selected supply flow paths using SVG cubic Bezier curve illumination.
 
 ### 3. Intel Briefings & Vector Store (RAG Library)
-* A new **Intel Briefings** section (`/briefings`) allows operators to upload intelligence documents, warning memos, or policy PDFs (`.pdf`, `.txt`, `.md`).
-* **Document Ingestion**: Splits documents into overlapping text chunks and computes vector embeddings. Uses Gemini API (`text-embedding-004`) when online, falls back to NVIDIA NIM embeddings (`nvidia/embeddings-nv-embed-qa-4`), and runs a character-hash local fallback if offline.
+* A dedicated **Intel Briefings** section allows operators to upload intelligence documents, warning memos, or policy PDFs (`.pdf`, `.txt`, `.md`).
+* **Document Ingestion**: Splits documents into overlapping text chunks and computes vector embeddings. Uses Gemini API (`text-embedding-004`) when online, falls back to NVIDIA NIM embeddings, and runs a character-hash local fallback if offline.
 * **Vector Search Playground**: Provides a direct Semantic Search interface showing match percentage meters and matching text excerpts using cosine similarity.
 * **Agentic Tool Integration**: Exposes the `Search Briefings Library` tool to the Geopolitical Risk Agent, allowing it to autonomously cross-reference policy guidelines or historical precedents during simulations.
 
----
-
-## 📂 Project Structure
-
-```text
-├── agents/                       # CrewAI Agent definitions and tools
-│   ├── config.py                 # SQLite db tools & task logging callbacks
-│   ├── risk_agent.py             # Geopolitical Risk Analyst Agent
-│   ├── scenario_modeller_agent.py# Disruption Scenario Modeller Agent
-│   ├── procurement_orchestrator_agent.py # Adaptive Procurement Agent
-│   ├── spr_optimisation_agent.py # Strategic Reserves (SPR) Agent
-│   └── digital_twin_agent.py     # Geospatial Twin Compiler Agent
-├── backend/                      # FastAPI Backend Server
-│   └── main.py                   # REST endpoints, CORS & Crew launcher
-├── data/                         # Data layer
-│   ├── data_generator.py         # Seed script generating 10m baseline data
-│   └── supply_chain.db           # SQLite database
-├── frontend/                     # Next.js 14 Web Application
-│   ├── src/app/                  # App Router Pages
-│   │   ├── page.tsx              # Control Center (Map + Tickers)
-│   │   ├── infrastructure/       # Refining, SPR, & Supplier Directory
-│   │   ├── briefings/            # RAG briefings management & search playground
-│   │   ├── risk/                 # Geopolitical Threat charts
-│   │   ├── scenario/             # Run-rate & downstream impact charts
-│   │   ├── procurement/          # Sourcing & Logistics rankings
-│   │   ├── spr/                  # Cavern depletion & release schedules
-│   │   └── runs/                 # Simulation log database inspector
-│   └── src/components/           # Reusable UI (Sidebar, Header, Leaflet Map)
-├── tests/
-│   └── run_crew.py               # CLI Multi-Agent sequential test runner
-├── requirements.txt              # Backend python packages
-└── .gitignore                    # Git exclude configuration
-```
+### 4. Production Exception Protections & Hardening
+* **Coordinate Validation Safeguards**: All Leaflet map overlays (refineries, suppliers, SPR caverns, active shipments, and alert zones) are wrapped in strict coordinate validation handlers. Coordinates are cast using `Number()` and validated with `isNaN()` to filter out incomplete items, completely preventing client-side leaflet crashes on undefined maps.
+* **KPI Formatting Safeties**: Implemented `safeFixed` and `safeLocale` formatting helpers inside data views to prevent React hydration and rendering crashes when SQL queries return null, undefined, or string-encoded numbers.
+* **Refinery & SPR Fallbacks**: Outfitted popups and charts with fallback data mappings to gracefully handle partial simulation outputs without breaking user flows.
 
 ---
 
@@ -176,8 +155,6 @@ We have extended the core multi-agent platform with advanced security, topologic
    *Or build the optimized production files for faster local execution:*
    ```bash
    npm run build
-   ```
-   ```bash
    npm start
    ```
 4. **View the Dashboard**:
