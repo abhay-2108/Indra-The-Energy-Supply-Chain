@@ -78,6 +78,7 @@ def create_schema(cursor):
             current_status TEXT,
             current_latitude REAL,
             current_longitude REAL,
+            route_progress REAL DEFAULT 0.0,
             FOREIGN KEY(supplier_id) REFERENCES suppliers(id),
             FOREIGN KEY(refinery_id) REFERENCES refineries(id),
             FOREIGN KEY(route_id) REFERENCES routes(id)
@@ -211,22 +212,25 @@ def generate_time_series(conn):
             if eta < today:
                 status = "COMPLETED"
                 cur_lat, cur_lng = None, None
+                progress = 1.0
             else:
                 status = "IN_TRANSIT"
                 # Interpolate coordinate roughly
                 cur_lat = float(np.random.normal(15, 5)) 
                 cur_lng = float(np.random.normal(60, 5))
+                elapsed = (today - d).days
+                progress = min(0.95, max(0.05, float(elapsed) / transit))
                 
             shipments.append((
                 f"SHP_{shipment_id}", vessel_name, vessel_type, supplier_id, refinery_id, route_id,
-                volume, d.isoformat(), eta.isoformat(), status, cur_lat, cur_lng
+                volume, d.isoformat(), eta.isoformat(), status, cur_lat, cur_lng, progress
             ))
             shipment_id += 1
             
     pd.DataFrame(shipments, columns=[
         'id', 'vessel_name', 'vessel_type', 'supplier_id', 'refinery_id', 'route_id',
         'volume_barrels', 'departure_date', 'estimated_arrival_date', 'current_status',
-        'current_latitude', 'current_longitude'
+        'current_latitude', 'current_longitude', 'route_progress'
     ]).to_sql('active_shipments', conn, if_exists='append', index=False)
     
     print(f"Generated {len(shipments)} total shipments.")

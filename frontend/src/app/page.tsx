@@ -22,6 +22,51 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [briefingText, setBriefingText] = useState("");
 
+  const getActiveAgentName = () => {
+    if (!runData) return "Geopolitical Risk Analyst (Agent 1/5)";
+    if (!runData.risk_agent) return "Geopolitical Risk Analyst (Agent 1/5)";
+    if (!runData.scenario_modeller) return "Disruption Scenario Modeller (Agent 2/5)";
+    if (!runData.procurement_orchestrator) return "Sourcing & Logistics Director (Agent 3/5)";
+    if (!runData.spr_optimisation) return "Strategic Reserve Cavern Manager (Agent 4/5)";
+    return "Geospatial Digital Twin Compiler (Agent 5/5)";
+  };
+
+  const renderAgentProgress = () => {
+    const agents = [
+      { key: "risk_agent", label: "Geopolitical Risk Analyst" },
+      { key: "scenario_modeller", label: "Scenario Modeller" },
+      { key: "procurement_orchestrator", label: "Sourcing Director" },
+      { key: "spr_optimisation", label: "SPR Cavern Manager" },
+      { key: "digital_twin", label: "Digital Twin Compiler" }
+    ];
+    
+    return (
+      <div className="flex flex-col gap-1.5 text-[10px] font-mono mt-4 border border-white/5 bg-slate-950/50 p-3.5 rounded-xl min-w-[280px]">
+        {agents.map((agent, i) => {
+          const isDone = runData && runData[agent.key];
+          const isActive = runData ? (!runData[agent.key] && (i === 0 || runData[agents[i-1].key])) : (i === 0);
+          
+          return (
+            <div key={agent.key} className="flex items-center justify-between text-left">
+              <span className={isDone ? "text-emerald-450 text-emerald-400 font-bold" : isActive ? "text-indigo-400 font-bold animate-pulse" : "text-slate-605 text-slate-500"}>
+                {i + 1}. {agent.label}
+              </span>
+              <span className="font-bold">
+                {isDone ? (
+                  <span className="text-emerald-400 text-[9px] uppercase tracking-wider font-bold">● Completed</span>
+                ) : isActive ? (
+                  <span className="text-indigo-400 text-[9px] uppercase tracking-wider font-bold flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span> Running...</span>
+                ) : (
+                  <span className="text-slate-600 text-[9px] uppercase tracking-wider font-semibold">Standby</span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const handleCustomSimulation = () => {
     if (!briefingText.trim()) return;
     triggerNewRun("custom_scenario", briefingText);
@@ -223,14 +268,15 @@ export default function DashboardPage() {
               </span>
             </div>
             {isSimulating ? (
-              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-3xl space-y-4">
-                <div className="relative w-16 h-16 flex items-center justify-center">
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-3xl p-6">
+                <div className="relative w-16 h-16 flex items-center justify-center mb-2">
                   <span className="absolute w-full h-full rounded-full border-4 border-emerald-500/20 animate-ping"></span>
                   <span className="absolute w-12 h-12 rounded-full border-4 border-emerald-500/40 animate-pulse"></span>
                   <div className="w-8 h-8 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
                 </div>
-                <p className="text-slate-300 font-bold text-sm tracking-wider uppercase">Running multi-agent analysis...</p>
-                <p className="text-xs text-slate-500 max-w-sm text-center">Quantifying chokepoints threats, recalculating refinery run-rates, optimizing Strategic Reserves drawdowns, and drawing alternate shipping geometries...</p>
+                <p className="text-slate-450 font-bold text-[9px] tracking-widest uppercase font-mono">Current Process Action</p>
+                <p className="text-slate-100 font-bold text-xs tracking-wide text-center mt-1 animate-pulse">{getActiveAgentName()}</p>
+                {renderAgentProgress()}
               </div>
             ) : null}
             <Map />

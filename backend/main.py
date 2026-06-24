@@ -1,17 +1,17 @@
 import os
 import sys
 import json
-import sqlite3
 import uuid
 import datetime
-from fastapi import FastAPI, HTTPException, UploadFile, File
+import asyncio
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.config import query_db, try_parse_json, make_task_callback, DB_PATH
+from agents.config import query_db, try_parse_json, make_task_callback
 from agents.risk_agent import get_risk_agent, get_risk_task
 from agents.scenario_modeller_agent import get_scenario_modeller_agent, get_scenario_modeller_task
 from agents.procurement_orchestrator_agent import get_procurement_orchestrator_agent, get_procurement_orchestrator_task
@@ -31,17 +31,55 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """
-    Initializes separate database log tables for each agent and RAG tables.
+    Initializes separate database log tables for each agent, RAG tables, and starts AIS stream processing.
     """
+    from agents.config import execute_db, query_db, IS_POSTGRES
+    
+    # 0. Self-heal/Bootstrapping: Auto-migrate SQLite schema to Postgres if empty
+    if IS_POSTGRES:
+        try:
+            res_tables = query_db("SELECT 1 FROM information_schema.tables WHERE table_name='refineries'")
+            if not res_tables:
+                print("[Startup Bootstrapper] PostgreSQL tables not found. Automatically running SQLite to Postgres migration...")
+                import sqlite3
+                from agents.config import get_db_connection
+                from data.migrate_to_postgres import migrate_relational_data, migrate_vector_data
+                
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                sqlite_db_path = os.path.join(base_dir, "data", "supply_chain.db")
+                
+                sqlite_conn = sqlite3.connect(sqlite_db_path)
+                pg_conn = get_db_connection()
+                
+                migrate_relational_data(sqlite_conn, pg_conn)
+                migrate_vector_data(sqlite_conn)
+                
+                sqlite_conn.close()
+                pg_conn.close()
+                print("[Startup Bootstrapper] Automatic database migration completed successfully!")
+        except Exception as mig_e:
+            print(f"[Startup Bootstrapper Error] Automatic migration failed: {mig_e}")
+
     from agents.rag_utils import init_rag_tables
     init_rag_tables()
+    
+    # 1. Initialize agent log tables
     agent_names = ["risk_agent", "scenario_modeller", "procurement_orchestrator", "spr_optimisation", "digital_twin"]
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        for name in agent_names:
-            cursor.execute(f'''
+    for name in agent_names:
+        if IS_POSTGRES:
+            execute_db(f'''
+                CREATE TABLE IF NOT EXISTS {name}_logs (
+                    run_id TEXT PRIMARY KEY,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    scenario_type TEXT,
+                    raw_output TEXT,
+                    parsed_json TEXT
+                );
+            ''')
+        else:
+            execute_db(f'''
                 CREATE TABLE IF NOT EXISTS {name}_logs (
                     run_id TEXT PRIMARY KEY,
                     timestamp TEXT DEFAULT (datetime('now', 'localtime')),
@@ -50,7 +88,34 @@ def startup_event():
                     parsed_json TEXT
                 );
             ''')
-        conn.commit()
+
+    # 2. Ensure route_progress column exists in active_shipments
+    try:
+        if IS_POSTGRES:
+            res = query_db("""
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='active_shipments' AND column_name='route_progress'
+            """)
+            if not res:
+                execute_db("ALTER TABLE active_shipments ADD COLUMN route_progress DOUBLE PRECISION DEFAULT 0.0")
+        else:
+            cols = query_db("PRAGMA table_info(active_shipments)")
+            if not any(c['name'] == 'route_progress' for c in cols):
+                execute_db("ALTER TABLE active_shipments ADD COLUMN route_progress REAL DEFAULT 0.0")
+    except Exception as db_e:
+        print(f"[Startup Database Alter] Warning adding route_progress: {db_e}")
+
+    # 3. Start AIS Stream Processor Tasks
+    from backend.stream_processor import start_stream_processor
+    asyncio.create_task(start_stream_processor())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Stops background AIS stream pipelines on app exit.
+    """
+    from backend.stream_processor import stop_stream_processor
+    await stop_stream_processor()
 
 class SimulationRequest(BaseModel):
     scenario_type: str = "hormuz_closure"
@@ -151,37 +216,36 @@ def get_run_details(run_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/simulate")
-def run_simulation(req: SimulationRequest):
+def execute_crew_background(run_id: str, scenario_type: str, custom_briefing: str):
     """
-    Kicks off the Multi-Agent Crew to run a simulation against the current DB state,
-    generating a unique run_id and saving agent results separately in the DB.
+    Background worker function running multi-agent execution in a separate thread.
+    Updates DB logs as progress completes.
     """
     try:
-        # Generate unique run ID
-        run_id = f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-        print(f"[API] Initializing CrewAI Agents for run {run_id} ({req.scenario_type})...")
+        print(f"[Background Task] Starting CrewAI execution for run {run_id} ({scenario_type})...")
         
+        # Load agents
         risk_agent = get_risk_agent()
         scenario_modeller_agent = get_scenario_modeller_agent()
         procurement_orchestrator_agent = get_procurement_orchestrator_agent()
         spr_optimisation_agent = get_spr_optimisation_agent()
         digital_twin_agent = get_digital_twin_agent()
         
+        # Load tasks
         risk_task = get_risk_task(risk_agent)
-        risk_task.callback = make_task_callback(run_id, req.scenario_type, "risk_agent")
+        risk_task.callback = make_task_callback(run_id, scenario_type, "risk_agent")
         
         scenario_modeller_task = get_scenario_modeller_task(scenario_modeller_agent)
         scenario_modeller_task.context = [risk_task]
-        scenario_modeller_task.callback = make_task_callback(run_id, req.scenario_type, "scenario_modeller")
+        scenario_modeller_task.callback = make_task_callback(run_id, scenario_type, "scenario_modeller")
         
         procurement_orchestrator_task = get_procurement_orchestrator_task(procurement_orchestrator_agent)
         procurement_orchestrator_task.context = [scenario_modeller_task]
-        procurement_orchestrator_task.callback = make_task_callback(run_id, req.scenario_type, "procurement_orchestrator")
+        procurement_orchestrator_task.callback = make_task_callback(run_id, scenario_type, "procurement_orchestrator")
         
         spr_optimisation_task = get_spr_optimisation_task(spr_optimisation_agent)
         spr_optimisation_task.context = [procurement_orchestrator_task, scenario_modeller_task]
-        spr_optimisation_task.callback = make_task_callback(run_id, req.scenario_type, "spr_optimisation")
+        spr_optimisation_task.callback = make_task_callback(run_id, scenario_type, "spr_optimisation")
         
         digital_twin_task = get_digital_twin_task(digital_twin_agent)
         digital_twin_task.context = [
@@ -190,7 +254,7 @@ def run_simulation(req: SimulationRequest):
             procurement_orchestrator_task, 
             spr_optimisation_task
         ]
-        digital_twin_task.callback = make_task_callback(run_id, req.scenario_type, "digital_twin")
+        digital_twin_task.callback = make_task_callback(run_id, scenario_type, "digital_twin")
         
         crew = Crew(
             agents=[
@@ -211,57 +275,111 @@ def run_simulation(req: SimulationRequest):
             verbose=True
         )
         
-        print(f"[API] Running sequential multi-agent execution for run {run_id}...")
         crew.kickoff(inputs={
             "run_id": run_id, 
-            "scenario_type": req.scenario_type, 
-            "custom_briefing": req.custom_briefing
+            "scenario_type": scenario_type, 
+            "custom_briefing": custom_briefing
         })
+        print(f"[Background Task] CrewAI execution completed successfully for run {run_id}")
+    except Exception as e:
+        print(f"[Background Task Error] Failed running crew for run {run_id}: {e}")
+        # Log failure state to digital_twin_logs table
+        try:
+            from agents.config import save_agent_output
+            error_payload = {"status": "failed", "error": str(e)}
+            save_agent_output(run_id, scenario_type, "digital_twin", f"Error: {e}", error_payload)
+        except Exception as db_e:
+            print(f"[Background Task Error Logging Failure] {db_e}")
+
+@app.post("/api/simulate")
+def run_simulation(req: SimulationRequest, background_tasks: BackgroundTasks):
+    """
+    Kicks off the Multi-Agent Crew to run in the background, returning a pending run_id immediately.
+    """
+    try:
+        # Generate unique run ID
+        run_id = f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        print(f"[API] Scheduling CrewAI Agents for run {run_id} ({req.scenario_type}) in background...")
         
-        # Extract individual task results from task output objects using the fixed '.raw' property
-        risk_out = try_parse_json(risk_task.output.raw if risk_task.output else "")
-        scenario_out = try_parse_json(scenario_modeller_task.output.raw if scenario_modeller_task.output else "")
-        procurement_out = try_parse_json(procurement_orchestrator_task.output.raw if procurement_orchestrator_task.output else "")
-        spr_out = try_parse_json(spr_optimisation_task.output.raw if spr_optimisation_task.output else "")
-        digital_twin_out = try_parse_json(digital_twin_task.output.raw if digital_twin_task.output else "")
+        background_tasks.add_task(execute_crew_background, run_id, req.scenario_type, req.custom_briefing)
         
         return {
-            "status": "success",
+            "status": "pending",
             "run_id": run_id,
             "scenario": req.scenario_type,
-            "agent_steps": {
-                "risk_agent": {
-                    "role": risk_agent.role,
-                    "result": risk_out
-                },
-                "scenario_modeller": {
-                    "role": scenario_modeller_agent.role,
-                    "result": scenario_out
-                },
-                "procurement_orchestrator": {
-                    "role": procurement_orchestrator_agent.role,
-                    "result": procurement_out
-                },
-                "spr_optimisation_agent": {
-                    "role": spr_optimisation_agent.role,
-                    "result": spr_out
-                }
-            },
-            "digital_twin_payload": digital_twin_out
+            "message": "Simulation started in background."
         }
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.websocket("/api/ws/run/{run_id}")
+async def websocket_run(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    try:
+        tables = {
+            "risk_agent": "risk_agent_logs",
+            "scenario_modeller": "scenario_modeller_logs",
+            "procurement_orchestrator": "procurement_orchestrator_logs",
+            "spr_optimisation": "spr_optimisation_logs",
+            "digital_twin": "digital_twin_logs"
+        }
+        
+        sent_status = {key: False for key in tables}
+        
+        failed = False
+        while True:
+            # Poll database for new log entries
+            for key, table in tables.items():
+                if not sent_status[key]:
+                    rows = query_db(f"SELECT * FROM {table} WHERE run_id = ?", (run_id,))
+                    if rows:
+                        row_dict = rows[0]
+                        parsed_json = None
+                        if "parsed_json" in row_dict and row_dict["parsed_json"]:
+                            try:
+                                parsed_json = json.loads(row_dict["parsed_json"])
+                            except Exception:
+                                pass
+                        
+                        payload = {
+                            "type": "agent_log",
+                            "agent": key,
+                            "timestamp": row_dict.get("timestamp"),
+                            "raw_output": row_dict.get("raw_output"),
+                            "result": parsed_json
+                        }
+                        await websocket.send_json(payload)
+                        sent_status[key] = True
+                        
+                        # Break immediately if the final twin reports failure to avoid getting stuck in polling
+                        if key == "digital_twin" and parsed_json and parsed_json.get("status") == "failed":
+                            await websocket.send_json({"type": "failed", "error": parsed_json.get("error")})
+                            failed = True
+                            break
+            
+            if failed:
+                break
+                
+            # Check if all completed
+            if all(sent_status.values()):
+                await websocket.send_json({"type": "complete", "run_id": run_id})
+                break
+                
+            await asyncio.sleep(1.0)
+            
+    except WebSocketDisconnect:
+        print(f"[WS Disconnect] Client closed connection for run {run_id}")
+    except Exception as e:
+        print(f"[WS Error] Exception in websocket: {e}")
 
 @app.get("/api/documents")
 def list_documents():
     try:
-        from agents.rag_utils import init_rag_tables
+        from agents.rag_utils import init_rag_tables, get_document_chunk_count
         init_rag_tables()
         docs = query_db("SELECT id, filename, uploaded_at, file_size FROM intel_documents ORDER BY uploaded_at DESC")
         for d in docs:
-            chunks = query_db("SELECT COUNT(*) as count FROM intel_chunks WHERE doc_id = ?", (d["id"],))
-            d["chunks_count"] = chunks[0]["count"] if chunks else 0
+            d["chunks_count"] = get_document_chunk_count(d["id"])
         return docs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

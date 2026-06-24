@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import { useSimulation } from "@/context/SimulationContext";
 import { getInfrastructure, getRoutes, getShipments } from "@/lib/api";
@@ -21,17 +21,42 @@ export default function Map() {
   const [routes, setRoutes] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
 
-  // Fetch baseline data
+  // Fetch baseline static data
   useEffect(() => {
-    async function loadData() {
-      const infrastructureData = await getInfrastructure();
-      const routesData = await getRoutes();
-      const shipmentsData = await getShipments();
-      setInfra(infrastructureData);
-      setRoutes(routesData);
-      setShipments(shipmentsData);
+    async function loadStaticData() {
+      try {
+        const infrastructureData = await getInfrastructure();
+        const routesData = await getRoutes();
+        setInfra(infrastructureData);
+        setRoutes(routesData);
+      } catch (e) {
+        console.error("Error loading infrastructure static data:", e);
+      }
     }
-    loadData();
+    loadStaticData();
+  }, []);
+
+  // Poll shipments coordinates dynamically every 3 seconds for real-time AIS updates
+  useEffect(() => {
+    let active = true;
+    async function pollShipments() {
+      try {
+        const shipmentsData = await getShipments();
+        if (active) {
+          setShipments(shipmentsData);
+        }
+      } catch (e) {
+        console.error("Error polling shipments:", e);
+      }
+    }
+    
+    pollShipments();
+    const interval = setInterval(pollShipments, 3000);
+    
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Determine active layers (from simulation run or baseline defaults)
@@ -147,6 +172,7 @@ export default function Map() {
         center={[20.0, 55.0]} 
         zoom={3.5} 
         scrollWheelZoom={true} 
+        preferCanvas={true}
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer
@@ -261,7 +287,7 @@ export default function Map() {
           </Marker>
         ))}
 
-        {/* 5. Transiting Vessels (Marker Pulse) */}
+        {/* 5. Transiting Vessels (Canvas CircleMarker) */}
         {shipments.map((ship) => {
           let lat = ship.current_latitude;
           let lng = ship.current_longitude;
@@ -283,20 +309,31 @@ export default function Map() {
 
           if (!lat || !lng || status === "COMPLETED") return null;
 
+          let color = "#38bdf8"; // Sky Blue
+          if (status === "BLOCKED") {
+            color = "#ef4444"; // Red
+          } else if (status === "REROUTED") {
+            color = "#fbbf24"; // Amber
+          }
+
           return (
-            <Marker 
+            <CircleMarker 
               key={ship.id} 
-              position={[lat, lng]} 
-              icon={getVesselIcon(status)}
+              center={[lat, lng]} 
+              radius={5}
+              fillColor={color}
+              color="#0f172a"
+              weight={1.5}
+              fillOpacity={0.95}
             >
               <Popup>
                 <div className="text-xs text-slate-200 p-1 space-y-0.5">
                   <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">{ship.vessel_name} ({ship.vessel_type})</p>
                   <p>Cargo: <b className="text-slate-100">{(ship.volume_barrels / 1000000).toFixed(1)}M barrels</b></p>
-                  <p>Status: <span className="font-bold text-sky-400">{status}</span></p>
+                  <p>Status: <span className="font-bold text-sky-400" style={{ color }}>{status}</span></p>
                 </div>
               </Popup>
-            </Marker>
+            </CircleMarker>
           );
         })}
 

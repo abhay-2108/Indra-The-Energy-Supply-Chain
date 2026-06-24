@@ -1,6 +1,15 @@
 import os
 import sqlite3
 import json
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError:
+    psycopg2 = None
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from crewai import LLM
 from crewai.tools import tool
 
@@ -8,14 +17,52 @@ from crewai.tools import tool
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "supply_chain.db")
 
+IS_POSTGRES = "DATABASE_URL" in os.environ
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_db_connection():
+    """Returns a database connection based on the environment configuration."""
+    if IS_POSTGRES:
+        if not psycopg2:
+            raise ImportError("psycopg2 is required for PostgreSQL connections. Install it via pip.")
+        return psycopg2.connect(DATABASE_URL)
+    return sqlite3.connect(DB_PATH)
+
 def query_db(query, params=()):
-    """Executes a SQL query against the SQLite database and returns a list of dictionaries."""
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+    """Executes a SQL query and returns a list of dictionaries."""
+    if IS_POSTGRES:
+        query = query.replace("?", "%s")
+        # Map SQLite specific datetime calls if any
+        query = query.replace("datetime('now', 'localtime')", "CURRENT_TIMESTAMP")
+        query = query.replace("datetime('now')", "CURRENT_TIMESTAMP")
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                return [dict(r) for r in rows]
+    else:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+def execute_db(query, params=()):
+    """Executes a SQL command (insert, update, delete, create) and commits it."""
+    if IS_POSTGRES:
+        query = query.replace("?", "%s")
+        query = query.replace("datetime('now', 'localtime')", "CURRENT_TIMESTAMP")
+        query = query.replace("datetime('now')", "CURRENT_TIMESTAMP")
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+            conn.commit()
+    else:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            conn.commit()
 
 def try_parse_json(text):
     if not text:
@@ -38,10 +85,27 @@ def save_agent_output(run_id, scenario_type, agent_name, raw_output, parsed_json
     parsed_str = json.dumps(parsed_json_dict) if parsed_json_dict else None
     table_name = f"{agent_name}_logs"
     
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        # Ensure the specific logs table exists
-        cursor.execute(f'''
+    if IS_POSTGRES:
+        execute_db(f'''
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                run_id TEXT PRIMARY KEY,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                scenario_type TEXT,
+                raw_output TEXT,
+                parsed_json TEXT
+            );
+        ''')
+        execute_db(f'''
+            INSERT INTO {table_name} (run_id, scenario_type, raw_output, parsed_json)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (run_id) DO UPDATE SET
+                scenario_type = EXCLUDED.scenario_type,
+                raw_output = EXCLUDED.raw_output,
+                parsed_json = EXCLUDED.parsed_json,
+                timestamp = CURRENT_TIMESTAMP
+        ''', (run_id, scenario_type, raw_output, parsed_str))
+    else:
+        execute_db(f'''
             CREATE TABLE IF NOT EXISTS {table_name} (
                 run_id TEXT PRIMARY KEY,
                 timestamp TEXT DEFAULT (datetime('now', 'localtime')),
@@ -50,11 +114,10 @@ def save_agent_output(run_id, scenario_type, agent_name, raw_output, parsed_json
                 parsed_json TEXT
             );
         ''')
-        cursor.execute(f'''
+        execute_db(f'''
             INSERT OR REPLACE INTO {table_name} (run_id, scenario_type, raw_output, parsed_json)
             VALUES (?, ?, ?, ?)
         ''', (run_id, scenario_type, raw_output, parsed_str))
-        conn.commit()
 
 def make_task_callback(run_id, scenario_type, agent_name):
     """
@@ -67,14 +130,43 @@ def make_task_callback(run_id, scenario_type, agent_name):
         print(f"[Callback Logger] Saved {agent_name} output to table '{agent_name}_logs' for run {run_id}.")
     return callback
 
+_gemini_valid = None
+
+def is_gemini_key_valid(api_key):
+    global _gemini_valid
+    if _gemini_valid is not None:
+        return _gemini_valid
+    try:
+        import requests
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            _gemini_valid = True
+        else:
+            print(f"[Config] Gemini API key validation failed ({res.status_code}): {res.json().get('error', {}).get('message', '')}")
+            _gemini_valid = False
+    except Exception as e:
+        print(f"[Config] Exception validating Gemini API key: {e}")
+        _gemini_valid = False
+    return _gemini_valid
+
 def get_llm():
     """
-    Returns an LLM instance, prioritizing Gemini API and falling back to Ollama.
+    Returns an LLM instance, prioritizing Gemini API, then NVIDIA, and falling back to Ollama.
     """
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if gemini_api_key:
+    if gemini_api_key and is_gemini_key_valid(gemini_api_key):
         return LLM(
             model="gemini/gemini-1.5-flash",
+            temperature=0.2
+        )
+
+    nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+    if nvidia_api_key:
+        return LLM(
+            model="openai/meta/llama-3.1-70b-instruct",
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=nvidia_api_key,
             temperature=0.2
         )
     
