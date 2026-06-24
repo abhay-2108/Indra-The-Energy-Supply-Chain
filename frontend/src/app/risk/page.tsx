@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useSimulation } from "@/context/SimulationContext";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { ShieldAlert, TrendingUp, HelpCircle } from "lucide-react";
@@ -57,7 +59,9 @@ export default function RiskPage() {
                     <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} width={120} />
                     <Tooltip 
                       cursor={{ fill: "#1e293b", opacity: 0.3 }}
-                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", color: "#f8fafc", borderRadius: "8px" }}
+                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }}
+                      itemStyle={{ color: "#f8fafc" }}
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold" }}
                     />
                     <Bar dataKey="probability" radius={[0, 4, 4, 0]} barSize={24}>
                       {corridorData.map((entry, index) => (

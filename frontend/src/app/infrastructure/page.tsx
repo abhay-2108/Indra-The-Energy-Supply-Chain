@@ -1,9 +1,17 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect } from "react";
 import { getInfrastructure } from "@/lib/api";
 import { Building2, Database, Globe, Search, PlusCircle, ArrowDownCircle, Percent, GitBranch } from "lucide-react";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
+
+const safeLower = (val: any) => (val ? String(val).toLowerCase() : "");
+const safeFixed = (val: any, decimals = 4) => {
+  const num = Number(val);
+  return isNaN(num) ? "0.0000" : num.toFixed(decimals);
+};
 
 export default function InfrastructurePage() {
   const [infra, setInfra] = useState<any>(null);
@@ -43,21 +51,21 @@ export default function InfrastructurePage() {
 
   // Filter based on search query
   const filteredRefineries = refineries.filter((r: any) =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.crude_compatibility.toLowerCase().includes(searchQuery.toLowerCase())
+    safeLower(r.name).includes(searchQuery.toLowerCase()) ||
+    safeLower(r.id).includes(searchQuery.toLowerCase()) ||
+    safeLower(r.crude_compatibility).includes(searchQuery.toLowerCase())
   );
 
   const filteredSprs = sprs.filter((s: any) =>
-    s.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.id.toLowerCase().includes(searchQuery.toLowerCase())
+    safeLower(s.location).includes(searchQuery.toLowerCase()) ||
+    safeLower(s.id).includes(searchQuery.toLowerCase())
   );
 
   const filteredSuppliers = suppliers.filter((s: any) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.region.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.crude_grade.toLowerCase().includes(searchQuery.toLowerCase())
+    safeLower(s.name).includes(searchQuery.toLowerCase()) ||
+    safeLower(s.id).includes(searchQuery.toLowerCase()) ||
+    safeLower(s.region).includes(searchQuery.toLowerCase()) ||
+    safeLower(s.crude_grade).includes(searchQuery.toLowerCase())
   );
 
   // Aggregated Stats
@@ -93,7 +101,15 @@ export default function InfrastructurePage() {
       {/* Grid: Stat Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Total refining */}
-        <div className="glass-panel glass-panel-hover rounded-2xl p-5">
+        <div
+          onClick={() => setActiveSection("refineries")}
+          className={`glass-panel rounded-2xl p-5 cursor-pointer transition-all duration-200 ${
+            activeSection === "refineries"
+              ? "ring-2 ring-emerald-500 bg-emerald-500/5 border-emerald-500/30"
+              : "glass-panel-hover border-slate-800"
+          }`}
+          title="Click to view Refining Assets"
+        >
           <div className="flex justify-between items-center text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Refining Capacity</span>
             <Building2 size={16} className="text-emerald-400" />
@@ -106,7 +122,15 @@ export default function InfrastructurePage() {
         </div>
 
         {/* Total SPR capacity */}
-        <div className="glass-panel glass-panel-hover-indigo rounded-2xl p-5">
+        <div
+          onClick={() => setActiveSection("sprs")}
+          className={`glass-panel rounded-2xl p-5 cursor-pointer transition-all duration-200 ${
+            activeSection === "sprs"
+              ? "ring-2 ring-indigo-500 bg-indigo-500/5 border-indigo-500/30"
+              : "glass-panel-hover-indigo border-slate-800"
+          }`}
+          title="Click to view Strategic Petroleum Caverns"
+        >
           <div className="flex justify-between items-center text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Strategic Reserves Cap</span>
             <Database size={16} className="text-indigo-400" />
@@ -119,7 +143,15 @@ export default function InfrastructurePage() {
         </div>
 
         {/* Total SPR stockpile */}
-        <div className="glass-panel glass-panel-hover rounded-2xl p-5">
+        <div
+          onClick={() => setActiveSection("sprs")}
+          className={`glass-panel rounded-2xl p-5 cursor-pointer transition-all duration-200 ${
+            activeSection === "sprs"
+              ? "ring-2 ring-indigo-500 bg-indigo-500/5 border-indigo-500/30"
+              : "glass-panel-hover border-slate-800"
+          }`}
+          title="Click to view Strategic Petroleum Caverns"
+        >
           <div className="flex justify-between items-center text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Strategic Stockpile</span>
             <ArrowDownCircle size={16} className="text-sky-400" />
@@ -134,7 +166,15 @@ export default function InfrastructurePage() {
         </div>
 
         {/* Total supplier capacity */}
-        <div className="glass-panel glass-panel-hover-amber rounded-2xl p-5">
+        <div
+          onClick={() => setActiveSection("suppliers")}
+          className={`glass-panel rounded-2xl p-5 cursor-pointer transition-all duration-200 ${
+            activeSection === "suppliers"
+              ? "ring-2 ring-amber-500 bg-amber-500/5 border-amber-500/30"
+              : "glass-panel-hover-amber border-slate-800"
+          }`}
+          title="Click to view Global Supply Nodes"
+        >
           <div className="flex justify-between items-center text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Suppliers Export Cap</span>
             <Globe size={16} className="text-amber-500" />
@@ -230,7 +270,7 @@ export default function InfrastructurePage() {
                           {ref.current_inventory_barrels ? ref.current_inventory_barrels.toLocaleString() : "0"} Barrels
                         </td>
                         <td className="px-6 py-4 text-center font-mono text-[10px] text-slate-500">
-                          [{ref.latitude?.toFixed(4)}, {ref.longitude?.toFixed(4)}]
+                          [{safeFixed(ref.latitude)}, {safeFixed(ref.longitude)}]
                         </td>
                       </tr>
                     ))}
@@ -289,7 +329,7 @@ export default function InfrastructurePage() {
                             {spr.max_drawdown_bpd ? spr.max_drawdown_bpd.toLocaleString() : "0"} bpd
                           </td>
                           <td className="px-6 py-4 text-center font-mono text-[10px] text-slate-500">
-                            [{spr.latitude?.toFixed(4)}, {spr.longitude?.toFixed(4)}]
+                            [{safeFixed(spr.latitude)}, {safeFixed(spr.longitude)}]
                           </td>
                         </tr>
                       );
@@ -331,7 +371,7 @@ export default function InfrastructurePage() {
                           {sup.max_export_capacity_bpd ? sup.max_export_capacity_bpd.toLocaleString() : "0"} bpd
                         </td>
                         <td className="px-6 py-4 text-center font-mono text-[10px] text-slate-500">
-                          [{sup.port_latitude?.toFixed(4)}, {sup.port_longitude?.toFixed(4)}]
+                          [{safeFixed(sup.port_latitude)}, {safeFixed(sup.port_longitude)}]
                         </td>
                       </tr>
                     ))}

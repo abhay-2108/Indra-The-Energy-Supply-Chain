@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useSimulation } from "@/context/SimulationContext";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { Compass, Leaf, ArrowRight, DollarSign } from "lucide-react";
@@ -126,7 +128,11 @@ export default function SourcingPage() {
                   <BarChart data={emissionChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
                     <YAxis stroke="#64748b" fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", color: "#f8fafc", borderRadius: "8px" }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }} 
+                      itemStyle={{ color: "#f8fafc" }}
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold" }}
+                    />
                     <Bar dataKey="co2" fill="#10b981" radius={[4, 4, 0, 0]} barSize={32} />
                   </BarChart>
                 </ResponsiveContainer>

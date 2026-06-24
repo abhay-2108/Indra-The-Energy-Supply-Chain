@@ -57,3 +57,13 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# LanceDB Vector Database
+data/lancedb/
+
+# SQLite Temporary / Journal Files
+*-journal
+*-wal
+*-shm
+
+

@@ -30,22 +30,22 @@ To ensure data consistency:
 4. Output a detailed policy-maker decision support document in JSON format.""",
         expected_output="""A JSON object containing:
 - 'drawdown_schedule' (list of dictionaries representing the daily release plan:
-  - 'spr_id'
-  - 'refinery_id'
-  - 'drawdown_rate_bpd'
-  - 'duration_days'
-  - 'total_allocated_barrels')
+  - 'spr_id' (string, the exact identifier from the database, e.g. 'SPR_PADUR', 'SPR_MANGALURU', or 'SPR_VIZAG')
+  - 'refinery_id' (string, e.g. 'REF_JAMNAGAR')
+  - 'drawdown_rate_bpd' (integer)
+  - 'duration_days' (integer)
+  - 'total_allocated_barrels' (integer))
 - 'replenishment_window_days' (integer, time required before alternative procurement arrives)
-- 'spr_depletion_forecast' (dictionary showing:
-  - 'spr_id'
-  - 'pre_event_barrels'
-  - 'post_event_barrels'
-  - 'percent_depleted')
+- 'spr_depletion_forecast' (a dictionary mapping each strategic cavern ID string (e.g., 'SPR_PADUR', 'SPR_MANGALURU', 'SPR_VIZAG') to a dictionary of its pre/post status:
+  - 'pre_event_barrels' (integer)
+  - 'post_event_barrels' (integer)
+  - 'percent_depleted' (number))
 - 'post_crisis_days_of_cover' (float, remaining national strategic cover in days)
 - 'financial_metrics':
-  - 'operational_drawdown_cost_usd'
-  - 'estimated_refill_cost_usd' (cost to replenish reserves post-crisis)
+  - 'operational_drawdown_cost_usd' (number)
+  - 'estimated_refill_cost_usd' (cost to replenish reserves post-crisis, number)
   - 'refill_price_strategy' (string advising whether to buy in contango or wait for backwardation to resolve)
 - 'policymaker_recommendation_summary' (string explaining drawdown prioritization and national risk buffer strategy)""",
         agent=agent
     )
+

@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useSimulation } from "@/context/SimulationContext";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { LineChart, Activity, AlertTriangle } from "lucide-react";
@@ -65,9 +67,13 @@ export default function ScenarioPage() {
                   <BarChart data={runRateData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
                     <YAxis stroke="#64748b" domain={[0, 100]} fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", color: "#f8fafc", borderRadius: "8px" }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }} 
+                      itemStyle={{ color: "#f8fafc" }} 
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold" }}
+                    />
                     <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                    <Bar dataKey="Normal Run Rate" fill="#1e293b" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Normal Run Rate" fill="#ffffff" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Projected Run Rate" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

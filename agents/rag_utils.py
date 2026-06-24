@@ -124,20 +124,6 @@ def get_embedding(text):
         except Exception as e:
             print(f"[RAG Utils] NVIDIA Embeddings Exception: {e}")
 
-    # Fallback to Ollama
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    try:
-        url = f"{ollama_url}/api/embeddings"
-        payload = {
-            "model": "qwen2.5:7b",
-            "prompt": text
-        }
-        res = requests.post(url, json=payload, timeout=8)
-        if res.status_code == 200:
-            return res.json()["embedding"]
-    except Exception as e:
-        print(f"[RAG Utils] Ollama Embeddings Exception: {e}")
-
     # Localized Pseudo-Embedding (stable fallback)
     vec = np.zeros(768)
     words = text.lower().split()

@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useSimulation } from "@/context/SimulationContext";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { Database, LineChart, Shield, RefreshCw } from "lucide-react";
@@ -13,7 +15,7 @@ export default function SprPage() {
     setMounted(true);
   }, []);
 
-  // Extract agent results
+  // Extract agent results safely
   const sprResult = runData?.spr_optimisation?.result ?? {
     drawdown_schedule: [],
     replenishment_window_days: 0,
@@ -31,12 +33,34 @@ export default function SprPage() {
     policymaker_recommendation_summary: "Reserves are operating in standard standby mode. No drawdown releases required."
   };
 
-  // Convert forecast to Recharts format
-  const chartData = Object.entries(sprResult.spr_depletion_forecast).map(([key, val]: any) => ({
-    name: key.replace("SPR_", ""),
-    "Pre-disruption": val.pre_event_barrels / 1000000,
-    "Post-disruption": val.post_event_barrels / 1000000
-  }));
+  const drawdownSchedule = Array.isArray(sprResult?.drawdown_schedule) ? sprResult.drawdown_schedule : [];
+  const rawForecast = sprResult?.spr_depletion_forecast ?? {};
+
+  // Convert forecast to Recharts format safely
+  let chartData: any[] = [];
+  if (rawForecast && typeof rawForecast === "object") {
+    if ("pre_event_barrels" in rawForecast) {
+      // It's a single cavern depletion object
+      const sprIdVal = String((rawForecast as any).spr_id);
+      const sprName = sprIdVal === "1" ? "PADUR" : sprIdVal === "2" ? "MANGALURU" : sprIdVal === "3" ? "VIZAG" : sprIdVal;
+      chartData = [{
+        name: sprName,
+        "Pre-disruption": Number((rawForecast as any).pre_event_barrels || 0) / 1000000,
+        "Post-disruption": Number((rawForecast as any).post_event_barrels || 0) / 1000000
+      }];
+    } else {
+      // It's the expected map of cavern objects
+      chartData = Object.entries(rawForecast).map(([key, val]: any) => {
+        const preVal = val?.pre_event_barrels ?? val?.pre_event ?? 0;
+        const postVal = val?.post_event_barrels ?? val?.post_event ?? 0;
+        return {
+          name: key.replace("SPR_", ""),
+          "Pre-disruption": Number(preVal) / 1000000,
+          "Post-disruption": Number(postVal) / 1000000
+        };
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -58,7 +82,11 @@ export default function SprPage() {
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
                     <YAxis stroke="#64748b" fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", color: "#f8fafc", borderRadius: "8px" }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px" }} 
+                      itemStyle={{ color: "#f8fafc" }}
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold" }}
+                    />
                     <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
                     <Bar dataKey="Pre-disruption" fill="#4f46e5" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Post-disruption" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -72,7 +100,7 @@ export default function SprPage() {
           <div className="glass-panel p-6 rounded-3xl">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Active Emergency Release Schedules</h3>
             <div className="overflow-x-auto mt-4">
-              {sprResult.drawdown_schedule.length > 0 ? (
+              {drawdownSchedule.length > 0 ? (
                 <table className="w-full text-sm text-left text-slate-400">
                   <thead className="text-xs uppercase bg-slate-950/40 text-slate-500 border-b border-slate-800">
                     <tr>
@@ -84,7 +112,7 @@ export default function SprPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {sprResult.drawdown_schedule.map((alloc: any, idx: number) => (
+                    {drawdownSchedule.map((alloc: any, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-850/20">
                         <td className="px-6 py-4 font-mono font-bold text-slate-200">{alloc.spr_id}</td>
                         <td className="px-6 py-4 font-mono font-semibold text-slate-400">{alloc.refinery_id}</td>

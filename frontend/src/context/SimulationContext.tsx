@@ -18,10 +18,11 @@ interface SimulationContextType {
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
 
-const unifyRunData = (runId: string, steps: any, digitalTwinPayload: any) => {
+const unifyRunData = (runId: string, steps: any, digitalTwinPayload: any, scenarioType?: string) => {
   return {
     run_id: runId,
     status: "success",
+    scenario: scenarioType || steps.risk_agent?.scenario_type || null,
     
     // Root level keys (for risk, scenario, procurement, spr pages)
     risk_agent: steps.risk_agent || null,
@@ -67,7 +68,19 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
 
   // Load runs list on mount
   useEffect(() => {
-    refreshRuns();
+    async function init() {
+      try {
+        const runs = await getRuns();
+        setHistoricalRuns(runs);
+        if (runs && runs.length > 0 && !activeRunId) {
+          console.log(`[Context] Initializing with latest historical run: ${runs[0].run_id}`);
+          await loadHistoricalRun(runs[0].run_id);
+        }
+      } catch (e) {
+        console.error("Failed to load runs on mount", e);
+      }
+    }
+    init();
   }, []);
 
   const viewLiveRun = () => {
@@ -94,7 +107,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
         let currentSteps: any = {};
         let currentDigitalTwin: any = null;
         
-        const initialUnified = unifyRunData(runId, currentSteps, currentDigitalTwin);
+        const initialUnified = unifyRunData(runId, currentSteps, currentDigitalTwin, scenarioType);
         setLiveRunData(initialUnified);
         setRunData(initialUnified);
         
@@ -116,7 +129,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
                 currentDigitalTwin = msg.result;
               }
               
-              const updatedUnified = unifyRunData(runId, currentSteps, currentDigitalTwin);
+              const updatedUnified = unifyRunData(runId, currentSteps, currentDigitalTwin, scenarioType);
               setLiveRunData(updatedUnified);
               
               setActiveRunId((prev) => {
@@ -161,7 +174,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
           spr_optimisation_agent: data.agent_steps?.spr_optimisation_agent,
           digital_twin: data.digital_twin_payload ? { result: data.digital_twin_payload } : null
         };
-        const unified = unifyRunData(runId, steps, data.digital_twin_payload);
+        const unified = unifyRunData(runId, steps, data.digital_twin_payload, scenarioType);
         setLiveRunData(unified);
         setRunData(unified);
         setIsSimulating(false);
@@ -174,7 +187,6 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   };
 
   const loadHistoricalRun = async (runId: string) => {
-    setIsSimulating(true);
     try {
       console.log(`[Context] Loading historical run: ${runId}`);
       const details = await getRunDetails(runId);
@@ -188,11 +200,9 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
         digital_twin: details?.digital_twin
       };
       
-      setRunData(unifyRunData(runId, steps, details?.digital_twin?.result));
+      setRunData(unifyRunData(runId, steps, details?.digital_twin?.result, details?.risk_agent?.scenario_type));
     } catch (e) {
       console.error("Failed to load run details", e);
-    } finally {
-      setIsSimulating(false);
     }
   };
 

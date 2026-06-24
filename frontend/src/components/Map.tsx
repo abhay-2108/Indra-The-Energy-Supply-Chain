@@ -69,7 +69,7 @@ export default function Map() {
     let pulse = "";
     if (isDisrupted) {
       const runRates = runData?.scenario_modeller?.result?.refinery_run_rates ?? {};
-      const rate = runRates[id]?.projected_utilization ?? 100;
+      const rate = runRates?.[id]?.projected_utilization ?? 100;
       if (rate < 80) {
         color = "bg-red-500";
         pulse = "animate-ping opacity-75";
@@ -95,7 +95,7 @@ export default function Map() {
     let color = "bg-orange-500";
     if (isDisrupted) {
       const probabilities = runData?.risk_agent?.result?.disruption_probability_by_supplier ?? {};
-      const prob = probabilities[id] ?? 0;
+      const prob = probabilities?.[id] ?? 0;
       if (prob > 0.7) {
         color = "bg-red-500";
       }
@@ -113,7 +113,14 @@ export default function Map() {
     let pulse = "";
     if (isDisrupted) {
       const drawdown = runData?.spr_optimisation?.result?.drawdown_schedule ?? [];
-      const isDrawing = drawdown.some((d: any) => d.spr_id === id);
+      const isDrawing = Array.isArray(drawdown) && drawdown.some((d: any) => {
+        const dId = String(d.spr_id);
+        if (dId === id) return true;
+        if (dId === "1" && id === "SPR_PADUR") return true;
+        if (dId === "2" && id === "SPR_MANGALURU") return true;
+        if (dId === "3" && id === "SPR_VIZAG") return true;
+        return false;
+      });
       if (isDrawing) {
         color = "bg-emerald-400";
         border = "border-emerald-950";
@@ -225,89 +232,107 @@ export default function Map() {
               </Popup>
             </Polyline>
           );
+        })}        {/* 2. Refineries (Marker Nodes) */}
+        {infra.refineries.map((ref: any) => {
+          const lat = Number(ref.latitude);
+          const lng = Number(ref.longitude);
+          if (isNaN(lat) || isNaN(lng)) return null;
+
+          return (
+            <Marker 
+              key={ref.id} 
+              position={[lat, lng]} 
+              icon={getRefineryIcon(ref.id)}
+            >
+              <Popup>
+                <div className="text-xs text-slate-200 p-1 space-y-1">
+                  <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">{ref.name}</p>
+                  <p>Capacity: <b className="text-slate-100">{(ref.capacity_bpd / 1000).toFixed(0)}k bpd</b></p>
+                  <p>Crude Grades: <i className="text-slate-350">{ref.crude_compatibility}</i></p>
+                  <p>Current Inventory: <b className="text-slate-100">{(ref.current_inventory_barrels / 1000000).toFixed(1)}M barrels</b></p>
+                  {isDisrupted && (
+                    <div className="border-t border-white/10 mt-1.5 pt-1.5 text-emerald-400 font-semibold space-y-0.5">
+                      <p>Proj. Run Rate: {runData?.scenario_modeller?.result?.refinery_run_rates?.[ref.id]?.projected_utilization ?? 100}%</p>
+                      <p>Days-to-Stockout: {runData?.scenario_modeller?.result?.refinery_days_to_stockout?.[ref.id] ?? "Safe"} days</p>
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          );
         })}
 
-        {/* 2. Refineries (Marker Nodes) */}
-        {infra.refineries.map((ref: any) => (
-          <Marker 
-            key={ref.id} 
-            position={[ref.latitude, ref.longitude]} 
-            icon={getRefineryIcon(ref.id)}
-          >
-            <Popup>
-              <div className="text-xs text-slate-200 p-1 space-y-1">
-                <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">{ref.name}</p>
-                <p>Capacity: <b className="text-slate-100">{(ref.capacity_bpd / 1000).toFixed(0)}k bpd</b></p>
-                <p>Crude Grades: <i className="text-slate-350">{ref.crude_compatibility}</i></p>
-                <p>Current Inventory: <b className="text-slate-100">{(ref.current_inventory_barrels / 1000000).toFixed(1)}M barrels</b></p>
-                {isDisrupted && (
-                  <div className="border-t border-white/10 mt-1.5 pt-1.5 text-emerald-400 font-semibold space-y-0.5">
-                    <p>Proj. Run Rate: {runData?.scenario_modeller?.result?.refinery_run_rates[ref.id]?.projected_utilization ?? 100}%</p>
-                    <p>Days-to-Stockout: {runData?.scenario_modeller?.result?.refinery_days_to_stockout[ref.id] ?? "Safe"} days</p>
-                  </div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-
         {/* 3. Suppliers (Marker Nodes) */}
-        {infra.suppliers.map((sup: any) => (
-          <Marker 
-            key={sup.id} 
-            position={[sup.port_latitude, sup.port_longitude]} 
-            icon={getSupplierIcon(sup.id)}
-          >
-            <Popup>
-              <div className="text-xs text-slate-200 p-1 space-y-0.5">
-                <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">{sup.name}</p>
-                <p>Region: <b className="text-slate-100">{sup.region}</b></p>
-                <p>Export Grade: <b className="text-slate-100">{sup.crude_grade}</b></p>
-                <p>Max Export: <b className="text-slate-100">{(sup.max_export_capacity_bpd / 1000000).toFixed(1)}M bpd</b></p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {infra.suppliers.map((sup: any) => {
+          const lat = Number(sup.port_latitude ?? sup.latitude);
+          const lng = Number(sup.port_longitude ?? sup.longitude);
+          if (isNaN(lat) || isNaN(lng)) return null;
+
+          return (
+            <Marker 
+              key={sup.id} 
+              position={[lat, lng]} 
+              icon={getSupplierIcon(sup.id)}
+            >
+              <Popup>
+                <div className="text-xs text-slate-200 p-1 space-y-0.5">
+                  <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">{sup.name}</p>
+                  <p>Region: <b className="text-slate-100">{sup.region}</b></p>
+                  <p>Export Grade: <b className="text-slate-100">{sup.crude_grade}</b></p>
+                  <p>Max Export: <b className="text-slate-100">{(sup.max_export_capacity_bpd / 1000000).toFixed(1)}M bpd</b></p>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
         {/* 4. SPR Inventory Caverns (Marker Nodes) */}
-        {infra.spr_inventory.map((spr: any) => (
-          <Marker 
-            key={spr.id} 
-            position={[spr.latitude, spr.longitude]} 
-            icon={getSprIcon(spr.id)}
-          >
-            <Popup>
-              <div className="text-xs text-slate-200 p-1 space-y-1">
-                <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">SPR {spr.location}</p>
-                <p>Capacity: <b className="text-slate-100">{(spr.capacity_barrels / 1000000).toFixed(1)}M barrels</b></p>
-                <p>Current Inventory: <b className="text-slate-100">{(spr.current_inventory_barrels / 1000000).toFixed(1)}M barrels</b></p>
-                <p>Max Drawdown: <b className="text-slate-100">{(spr.max_drawdown_bpd / 1000).toFixed(0)}k bpd</b></p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {infra.spr_inventory.map((spr: any) => {
+          const lat = Number(spr.latitude);
+          const lng = Number(spr.longitude);
+          if (isNaN(lat) || isNaN(lng)) return null;
+
+          return (
+            <Marker 
+              key={spr.id} 
+              position={[lat, lng]} 
+              icon={getSprIcon(spr.id)}
+            >
+              <Popup>
+                <div className="text-xs text-slate-200 p-1 space-y-1">
+                  <p className="font-bold text-sm text-white border-b border-white/10 pb-1 mb-1">SPR {spr.location}</p>
+                  <p>Capacity: <b className="text-slate-100">{(spr.capacity_barrels / 1000000).toFixed(1)}M barrels</b></p>
+                  <p>Current Inventory: <b className="text-slate-100">{(spr.current_inventory_barrels / 1000000).toFixed(1)}M barrels</b></p>
+                  <p>Max Drawdown: <b className="text-slate-100">{(spr.max_drawdown_bpd / 1000).toFixed(0)}k bpd</b></p>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
         {/* 5. Transiting Vessels (Canvas CircleMarker) */}
         {shipments.map((ship) => {
-          let lat = ship.current_latitude;
-          let lng = ship.current_longitude;
+          let latVal = ship.current_latitude;
+          let lngVal = ship.current_longitude;
           let status = ship.current_status;
 
           // If disrupted, overlay the new visual status
           if (isDisrupted) {
             const vesselsLayer = runData?.digital_twin?.result?.geospatial_layers?.vessels_layer ?? [];
-            const vState = vesselsLayer.find((vl: any) => vl.name === ship.vessel_name);
+            const vState = vesselsLayer.find((rl: any) => rl.vessel_name === ship.vessel_name || rl.name === ship.vessel_name);
             if (vState) {
               status = vState.status;
               // Add slight random offset if coordinates are null
-              if (!lat) {
-                lat = 12.0 + Math.random() * 5;
-                lng = 62.0 + Math.random() * 5;
+              if (!latVal) {
+                latVal = 12.0 + Math.random() * 5;
+                lngVal = 62.0 + Math.random() * 5;
               }
             }
           }
 
-          if (!lat || !lng || status === "COMPLETED") return null;
+          const lat = Number(latVal);
+          const lng = Number(lngVal);
+          if (isNaN(lat) || isNaN(lng) || status === "COMPLETED") return null;
 
           let color = "#38bdf8"; // Sky Blue
           if (status === "BLOCKED") {
@@ -338,21 +363,31 @@ export default function Map() {
         })}
 
         {/* 6. Alert Zones (Geopolitical Threats overlay) */}
-        {activeAlerts.map((zone: any, idx: number) => (
-          <Circle
-            key={idx}
-            center={[zone.lat, zone.lng]}
-            radius={zone.radius}
-            pathOptions={{ fillColor: "red", color: "red", fillOpacity: 0.15 }}
-          >
-            <Popup>
-              <div className="text-xs text-slate-200 p-1 space-y-0.5">
-                <p className="font-bold text-sm text-red-400 border-b border-red-950/20 pb-1 mb-1">Active Alert Zone: {zone.name}</p>
-                <p>Threat Probability: <b className="text-slate-100">{(zone.probability * 100).toFixed(0)}%</b></p>
-              </div>
-            </Popup>
-          </Circle>
-        ))}
+        {activeAlerts.map((zone: any, idx: number) => {
+          const lat = Number(zone.latitude ?? zone.lat);
+          const lng = Number(zone.longitude ?? zone.lng);
+          const radius = Number(zone.radius ?? 300000); // 300km fallback radius
+          const probability = Number(zone.risk_probability ?? zone.probability ?? 0);
+          const name = zone.chokepoint_name ?? zone.name ?? "Alert Zone";
+
+          if (isNaN(lat) || isNaN(lng)) return null;
+
+          return (
+            <Circle
+              key={idx}
+              center={[lat, lng]}
+              radius={radius}
+              pathOptions={{ fillColor: "red", color: "red", fillOpacity: 0.15 }}
+            >
+              <Popup>
+                <div className="text-xs text-slate-200 p-1 space-y-0.5">
+                  <p className="font-bold text-sm text-red-400 border-b border-red-950/20 pb-1 mb-1">Active Alert Zone: {name}</p>
+                  <p>Threat Probability: <b className="text-slate-100">{(probability * 100).toFixed(0)}%</b></p>
+                </div>
+              </Popup>
+            </Circle>
+          );
+        })}
       </MapContainer>
     </div>
   );

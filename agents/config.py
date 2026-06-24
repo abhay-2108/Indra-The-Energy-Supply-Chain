@@ -152,29 +152,18 @@ def is_gemini_key_valid(api_key):
 
 def get_llm():
     """
-    Returns an LLM instance, prioritizing Gemini API, then NVIDIA, and falling back to Ollama.
+    Returns an LLM instance initialized with the NVIDIA hosted meta/llama-3.1-70b-instruct model.
     """
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if gemini_api_key and is_gemini_key_valid(gemini_api_key):
-        return LLM(
-            model="gemini/gemini-1.5-flash",
-            temperature=0.2
-        )
-
     nvidia_api_key = os.getenv("NVIDIA_API_KEY")
-    if nvidia_api_key:
-        return LLM(
-            model="openai/meta/llama-3.1-70b-instruct",
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=nvidia_api_key,
-            temperature=0.2
-        )
+    if not nvidia_api_key:
+        raise ValueError("NVIDIA_API_KEY environment variable is not set. Please set it in your .env file.")
     
-    # Fallback to Ollama
     return LLM(
-        model="ollama/qwen2.5:7b",
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        temperature=0.2
+        model="openai/meta/llama-3.1-70b-instruct",
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=nvidia_api_key,
+        temperature=0.2,
+        max_retries=10
     )
 
 @tool("Query Database")

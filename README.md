@@ -81,7 +81,7 @@ We have extended the core multi-agent platform with advanced security, topologic
 
 ### 3. Intel Briefings & Vector Store (RAG Library)
 * A new **Intel Briefings** section (`/briefings`) allows operators to upload intelligence documents, warning memos, or policy PDFs (`.pdf`, `.txt`, `.md`).
-* **Document Ingestion**: Splits documents into overlapping text chunks and computes vector embeddings. Uses Gemini API (`text-embedding-004`) when online, falls back to Ollama (`qwen2.5`), and runs a character-hash local fallback if offline.
+* **Document Ingestion**: Splits documents into overlapping text chunks and computes vector embeddings. Uses Gemini API (`text-embedding-004`) when online, falls back to NVIDIA NIM embeddings (`nvidia/embeddings-nv-embed-qa-4`), and runs a character-hash local fallback if offline.
 * **Vector Search Playground**: Provides a direct Semantic Search interface showing match percentage meters and matching text excerpts using cosine similarity.
 * **Agentic Tool Integration**: Exposes the `Search Briefings Library` tool to the Geopolitical Risk Agent, allowing it to autonomously cross-reference policy guidelines or historical precedents during simulations.
 
@@ -126,7 +126,6 @@ We have extended the core multi-agent platform with advanced security, topologic
 ### 1. Prerequisites
 * **Python**: Version `3.10`, `3.11`, or `3.12`.
 * **Node.js**: Version `18` or higher.
-* **Ollama**: (Optional) For running fallback models locally (e.g. `qwen2.5:7b`).
 
 ---
 

@@ -6,7 +6,7 @@ export default function Header() {
   const { activeRunId, isSimulating } = useSimulation();
 
   return (
-    <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-slate-950/20 backdrop-blur-md sticky top-0 z-10 w-full">
+    <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-slate-950/90 backdrop-blur-md shrink-0 relative z-20 w-full">
       <div className="flex items-center gap-4">
         <span className="text-sm font-medium text-slate-400">Security Control Hub</span>
         <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>
@@ -25,7 +25,7 @@ export default function Header() {
           Simulated Timeline: <span className="text-emerald-400 font-mono">DAY 300</span>
         </div>
         <div className="text-xs text-slate-500 border border-white/5 rounded-lg px-2.5 py-1 bg-slate-950/40">
-          Ollama Context: <span className="text-slate-400 font-mono">Qwen-2.5 (7B)</span>
+          LLM Context: <span className="text-slate-400 font-mono">Llama-3.1 (NVIDIA)</span>
         </div>
       </div>
     </header>

@@ -10,7 +10,9 @@ import os
 # Initialize Faker
 fake = Faker()
 
-DB_PATH = "supply_chain.db"
+# Determine database path relative to this script's directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "supply_chain.db")
 DAYS_HISTORY = 300
 
 def create_schema(cursor):
@@ -117,14 +119,87 @@ def populate_static_data(cursor):
     ]
     cursor.executemany("INSERT INTO suppliers VALUES (?,?,?,?,?,?,?)", suppliers)
 
-    def make_line(lat1, lon1, lat2, lon2):
-        return json.dumps({"type": "LineString", "coordinates": [[lon1, lat1], [lon2, lat2]]})
-
     routes = [
-        ("RT_SAUDI_JAMNAGAR", "SUP_SAUDI", "India West Coast", "Strait of Hormuz", 5, "SAFE", make_line(26.6833, 50.1500, 22.3444, 69.8055)),
-        ("RT_IRAQ_PARADIP", "SUP_IRAQ", "India East Coast", "Strait of Hormuz", 9, "SAFE", make_line(29.9322, 48.4735, 20.2796, 86.6668)),
-        ("RT_US_JAMNAGAR", "SUP_US_GULF", "India West Coast", "Cape of Good Hope", 35, "SAFE", make_line(29.3117, -94.7934, 22.3444, 69.8055)),
-        ("RT_NIGERIA_KOCHI", "SUP_NIGERIA", "India West Coast", "None", 22, "SAFE", make_line(4.4172, 7.1517, 9.9657, 76.3866))
+        (
+            "RT_SAUDI_JAMNAGAR", 
+            "SUP_SAUDI", 
+            "India West Coast", 
+            "Strait of Hormuz", 
+            5, 
+            "SAFE", 
+            json.dumps({
+                "type": "LineString", 
+                "coordinates": [
+                    [50.1500, 26.6833], # Ras Tanura
+                    [56.4000, 26.3000], # Strait of Hormuz
+                    [59.5000, 22.5000], # Gulf of Oman exit
+                    [69.8055, 22.3444]  # Jamnagar
+                ]
+            })
+        ),
+        (
+            "RT_IRAQ_PARADIP", 
+            "SUP_IRAQ", 
+            "India East Coast", 
+            "Strait of Hormuz", 
+            9, 
+            "SAFE", 
+            json.dumps({
+                "type": "LineString", 
+                "coordinates": [
+                    [48.4735, 29.9322], # Al Basrah
+                    [56.4000, 26.3000], # Strait of Hormuz
+                    [59.5000, 22.5000], # Gulf of Oman exit
+                    [72.0000, 10.0000], # Lakshadweep Sea
+                    [79.5000, 5.5000],  # South of India / Comorin
+                    [82.0000, 6.0000],  # South of Sri Lanka
+                    [86.6668, 20.2796]  # Paradip
+                ]
+            })
+        ),
+        (
+            "RT_US_JAMNAGAR", 
+            "SUP_US_GULF", 
+            "India West Coast", 
+            "Cape of Good Hope", 
+            35, 
+            "SAFE", 
+            json.dumps({
+                "type": "LineString", 
+                "coordinates": [
+                    [-94.7934, 29.3117], # Galveston
+                    [-82.0000, 23.0000], # Florida Straits
+                    [-74.0000, 22.0000], # Bahamas passage
+                    [-35.0000, -5.0000], # Atlantic equator crossing
+                    [18.5000, -34.5000], # Cape of Good Hope
+                    [40.0000, -15.0000], # Madagascar Channel
+                    [51.0000, 0.0000],   # East Africa Coast
+                    [65.0000, 15.0000],  # Central Arabian Sea
+                    [69.8055, 22.3444]   # Jamnagar
+                ]
+            })
+        ),
+        (
+            "RT_NIGERIA_KOCHI", 
+            "SUP_NIGERIA", 
+            "India West Coast", 
+            "None", 
+            22, 
+            "SAFE", 
+            json.dumps({
+                "type": "LineString", 
+                "coordinates": [
+                    [7.1517, 4.4172],   # Bonny Terminal
+                    [5.0000, -5.0000],   # Avoid African bulge
+                    [10.0000, -25.0000], # South Atlantic
+                    [18.5000, -34.5000], # Cape of Good Hope
+                    [45.0000, -25.0000], # South of Madagascar
+                    [55.0000, -10.0000], # South Indian Ocean
+                    [70.0000, 2.0000],   # Mid Indian Ocean
+                    [76.3866, 9.9657]    # Kochi
+                ]
+            })
+        )
     ]
     cursor.executemany("INSERT INTO routes VALUES (?,?,?,?,?,?,?)", routes)
 
@@ -186,7 +261,7 @@ def generate_time_series(conn):
     # 3. Active Shipments
     shipments = []
     cursor = conn.cursor()
-    cursor.execute("SELECT id, supplier_id FROM routes")
+    cursor.execute("SELECT id, supplier_id, geojson_path FROM routes")
     routes = cursor.fetchall()
     
     refineries = ["REF_JAMNAGAR", "REF_KOCHI", "REF_PARADIP"]
@@ -195,7 +270,7 @@ def generate_time_series(conn):
     for i, d in enumerate(dates):
         num_ships = random.randint(1, 4)
         for _ in range(num_ships):
-            route_id, supplier_id = random.choice(routes)
+            route_id, supplier_id, geojson_str = random.choice(routes)
             refinery_id = random.choice(refineries)
             vessel_name = f"MT {fake.last_name()}"
             vessel_type = random.choice(["VLCC", "Suezmax"])
@@ -215,11 +290,29 @@ def generate_time_series(conn):
                 progress = 1.0
             else:
                 status = "IN_TRANSIT"
-                # Interpolate coordinate roughly
-                cur_lat = float(np.random.normal(15, 5)) 
-                cur_lng = float(np.random.normal(60, 5))
                 elapsed = (today - d).days
                 progress = min(0.95, max(0.05, float(elapsed) / transit))
+                
+                # Interpolate coordinate along the route geometry
+                try:
+                    route_geo = json.loads(geojson_str)
+                    coords = route_geo.get("coordinates", [])
+                except Exception:
+                    coords = []
+                    
+                if len(coords) > 1:
+                    n = len(coords) - 1
+                    segment_progress = progress * n
+                    idx = int(segment_progress)
+                    idx = min(idx, n - 1)
+                    fraction = segment_progress - idx
+                    p1 = coords[idx]
+                    p2 = coords[idx + 1]
+                    cur_lng = float(p1[0] + fraction * (p2[0] - p1[0]))
+                    cur_lat = float(p1[1] + fraction * (p2[1] - p1[1]))
+                else:
+                    cur_lat = float(np.random.normal(15, 5)) 
+                    cur_lng = float(np.random.normal(60, 5))
                 
             shipments.append((
                 f"SHP_{shipment_id}", vessel_name, vessel_type, supplier_id, refinery_id, route_id,
@@ -236,9 +329,6 @@ def generate_time_series(conn):
     print(f"Generated {len(shipments)} total shipments.")
 
 def main():
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-        
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     

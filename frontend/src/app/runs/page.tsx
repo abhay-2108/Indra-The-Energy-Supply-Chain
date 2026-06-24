@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useSimulation } from "@/context/SimulationContext";
 import { History, FileText, Code, Database, ChevronRight, CornerDownRight, Activity, Terminal } from "lucide-react";
 import { useState, Fragment, useEffect } from "react";

@@ -26,10 +26,29 @@ export default function BriefingsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // Load existing briefings on component mount
+  // Load existing briefings and trigger initial search if documents exist
   useEffect(() => {
-    loadBriefingsData();
+    async function loadDataAndSearch() {
+      setLoadingDocs(true);
+      try {
+        const data = await getBriefings();
+        setDocuments(data);
+        if (data && data.length > 0) {
+          setSearching(true);
+          setHasSearched(true);
+          const hits = await searchBriefings("Hormuz");
+          setSearchResults(Array.isArray(hits) ? hits : []);
+        }
+      } catch (e) {
+        console.error("Failed to load briefings or initial search", e);
+      } finally {
+        setLoadingDocs(false);
+        setSearching(false);
+      }
+    }
+    loadDataAndSearch();
   }, []);
 
   async function loadBriefingsData() {
@@ -106,9 +125,10 @@ export default function BriefingsPage() {
     if (!searchQuery.trim()) return;
 
     setSearching(true);
+    setHasSearched(true);
     try {
       const hits = await searchBriefings(searchQuery);
-      setSearchResults(hits);
+      setSearchResults(Array.isArray(hits) ? hits : []);
     } catch (e) {
       console.error("Semantic search failed", e);
     } finally {
@@ -383,8 +403,16 @@ export default function BriefingsPage() {
                   );
                 })}
               </div>
+            ) : hasSearched ? (
+              <div className="py-24 text-center text-slate-555 border border-white/5 rounded-3xl bg-slate-950/20">
+                <AlertCircle size={24} className="mx-auto mb-2 text-amber-500 animate-pulse" />
+                <p className="text-xs font-semibold">No Semantic Matches Found</p>
+                <p className="text-[10px] text-slate-450 mt-1 max-w-xs mx-auto">
+                  We couldn't find any relevant text chunks in the vector library for "{searchQuery}". Try using key terms like "Hormuz", "drawdown", "Saudi", or "refinery".
+                </p>
+              </div>
             ) : (
-              <div className="py-24 text-center text-slate-550 border border-white/5 rounded-3xl bg-slate-950/20">
+              <div className="py-24 text-center text-slate-555 border border-white/5 rounded-3xl bg-slate-950/20">
                 <Search size={24} className="mx-auto mb-2 text-slate-700" />
                 <p className="text-xs font-semibold">Semantic Match Container</p>
                 <p className="text-[10px] text-slate-500 mt-1 max-w-xs mx-auto">

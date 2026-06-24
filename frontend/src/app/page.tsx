@@ -1,6 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
+export const dynamic = "force-dynamic";
+
+import nextDynamic from "next/dynamic";
 import { useSimulation } from "@/context/SimulationContext";
 import { useState, useEffect } from "react";
 import { getEvents } from "@/lib/api";
@@ -15,7 +17,7 @@ import {
 } from "lucide-react";
 
 // Dynamically import Leaflet Map to prevent Next.js SSR window errors
-const Map = dynamic(() => import("@/components/Map"), { ssr: false });
+const Map = nextDynamic(() => import("@/components/Map"), { ssr: false });
 
 export default function DashboardPage() {
   const { runData, isSimulating, triggerNewRun, activeRunId } = useSimulation();
@@ -84,13 +86,27 @@ export default function DashboardPage() {
     loadEvents();
   }, [activeRunId]);
 
-  // Extract KPI values
-  const kpis = runData?.digital_twin?.result?.scenario_comparison?.baseline_vs_disrupted_kpis ?? {
+  // Robustly resolve naming variations from the multi-agent DB logs
+  const rawKpis = runData?.digital_twin?.result?.scenario_comparison?.baseline_vs_disrupted_kpis ?? {
     total_sourcing_cost_delta_usd: 0,
     national_days_of_cover: 9.5,
     fuel_price_delta_inr: 0.00,
     co2_footprint_delta_tons: 0
   };
+
+  // Convert values safely to numbers and validate to prevent TypeError crashes
+  const costVal = Number(rawKpis.total_sourcing_cost_delta_usd ?? rawKpis.total_cost ?? rawKpis.total_cost_usd ?? 0);
+  const costDelta = isNaN(costVal) ? 0 : costVal;
+
+  const coverVal = Number(rawKpis.national_days_of_cover ?? 9.5);
+  const coverDays = isNaN(coverVal) ? 9.5 : coverVal;
+
+  const priceVal = Number(rawKpis.fuel_price_delta_inr ?? rawKpis.fuel_price_delta ?? 0);
+  const priceDelta = isNaN(priceVal) ? 0 : priceVal;
+
+  const co2Val = Number(rawKpis.co2_footprint_delta_tons ?? rawKpis.co2_footprint_delta ?? rawKpis.co2_emissions_metric_tons ??
+                 runData?.procurement_orchestrator?.result?.cost_optimized_options?.[0]?.co2_emissions_metric_tons ?? 0);
+  const co2Delta = isNaN(co2Val) ? 0 : co2Val;
 
   const isDisrupted = runData?.digital_twin?.result?.scenario_comparison?.is_disrupted ?? false;
   const singlePointsOfFailure = runData?.digital_twin?.result?.scenario_comparison?.single_points_of_failure ?? [];
@@ -100,7 +116,7 @@ export default function DashboardPage() {
       {/* Page Title */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">National Energy Command Center</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">National Energy Command Center</h1>
           <p className="text-slate-400 text-sm mt-1">Geospatial Digital Twin & Multi-Agent Operations Console</p>
         </div>
         
@@ -135,14 +151,14 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight">
-              {kpis.total_sourcing_cost_delta_usd > 0 
-                ? `+$${(kpis.total_sourcing_cost_delta_usd / 1000000).toFixed(1)}M` 
+              {costDelta > 0 
+                ? `+$${costDelta >= 1000000 ? `${(costDelta / 1000000).toFixed(1)}M` : costDelta.toLocaleString()}` 
                 : "$0.0M"}
             </span>
             <span className="text-xs text-slate-500">USD Premium</span>
           </div>
           <div className="text-[10px] text-slate-400 mt-2">
-            {kpis.total_sourcing_cost_delta_usd > 0 ? "Alternative spot purchases active" : "Operating on baseline contracts"}
+            {costDelta > 0 ? "Alternative spot purchases active" : "Operating on baseline contracts"}
           </div>
         </div>
 
@@ -153,7 +169,7 @@ export default function DashboardPage() {
             <Activity size={18} className="text-violet-400" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black tracking-tight">{kpis.national_days_of_cover}</span>
+            <span className="text-2xl font-black tracking-tight">{coverDays}</span>
             <span className="text-xs text-slate-400 font-semibold">Days</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-2">
@@ -169,7 +185,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight">
-              {kpis.fuel_price_delta_inr > 0 ? `+₹${kpis.fuel_price_delta_inr.toFixed(2)}` : "₹0.00"}
+              {priceDelta > 0 ? `+₹${priceDelta.toFixed(2)}` : "₹0.00"}
             </span>
             <span className="text-xs text-slate-500">per Litre</span>
           </div>
@@ -186,7 +202,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight">
-              {kpis.co2_footprint_delta_tons > 0 ? `+${kpis.co2_footprint_delta_tons}t` : "0t"}
+              {co2Delta > 0 ? `+${co2Delta.toLocaleString()}t` : "0t"}
             </span>
             <span className="text-xs text-slate-500">CO2 Emissions</span>
           </div>
