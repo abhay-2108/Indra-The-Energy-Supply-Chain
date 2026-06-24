@@ -162,6 +162,58 @@ Rather than bloating LLM context windows or passing volatile variables, INDRA us
 
 ---
 
+## 🐳 Docker Deployment & Containerization
+
+INDRA is fully containerized using Docker and Docker Compose. This packages the Next.js frontend, FastAPI backend, a Redpanda (Kafka) message broker, and a PostGIS PostgreSQL database into a single cohesive network.
+
+### 1. Run the Platform via Docker Compose
+To build and launch all services simultaneously:
+
+1. **Provide API Credentials**: Ensure your root `.env` file contains your credentials:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key
+   NVIDIA_API_KEY=your_nvidia_api_key
+   or any API key you have
+   ```
+2. **Launch Services**: Run the following command in the project root:
+   ```bash
+   docker compose up --build
+   ```
+   * To run in the background (detached mode), add the `-d` flag:
+     ```bash
+     docker compose up -d
+     ```
+3. **Verify running containers**:
+   * **Frontend Dashboard**: Open your browser to `http://localhost:3000`
+   * **FastAPI Backend Server**: Live at `http://localhost:8000/docs`
+   * **Kafka Broker (Redpanda Console)**: Available on `http://localhost:19092`
+
+---
+
+### 2. How to Rebuild and Push Changes to Docker Hub
+
+If you make modifications to the codebase (agents, API, or React panels) and want to push the updated images:
+
+1. **Rebuild local Docker images**:
+   ```bash
+   docker compose build
+   ```
+   *This command parses the Dockerfiles, recompiles Next.js, and bundles Python libraries.*
+
+2. **Authenticate with Docker Hub**:
+   ```bash
+   docker login
+   ```
+   *Log in with your Docker ID (e.g., `abhay120`) and password/token.*
+
+3. **Push the updated images**:
+   ```bash
+   docker push abhay120/indra-backend:latest
+   docker push abhay120/indra-frontend:latest
+   ```
+
+---
+
 ## 🔍 How to Demo INDRA
 
 1. **Dashboard Control Center**:
