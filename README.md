@@ -1,3 +1,12 @@
+---
+title: INDRA Supply Chain Digital Twin
+emoji: 🛡️
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 # 🛡️ INDRA: Energy Supply Chain Resilience Platform
 > **INDRA** (*Intel-driven Network for Disruption Resilience & Analysis*) is a Multi-Agent AI and Geospatial Digital Twin platform designed to safeguard national energy security by orchestrating autonomous intelligence analysis, macroeconomic impact modeling, adaptive procurement, and strategic petroleum reserve releases during maritime chokepoint disruptions.
 

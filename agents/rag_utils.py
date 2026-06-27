@@ -83,8 +83,8 @@ def get_embedding(text):
     3. Tertiary: Ollama api/embeddings
     4. Quaternary: Localized pseudo-embedding via Hash Kernel
     """
-    from agents.config import is_gemini_key_valid
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    from agents.config import is_gemini_key_valid, gemini_key_var, nvidia_key_var
+    gemini_api_key = gemini_key_var.get() or os.getenv("GEMINI_API_KEY")
     if gemini_api_key and is_gemini_key_valid(gemini_api_key):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={gemini_api_key}"
@@ -103,7 +103,7 @@ def get_embedding(text):
         except Exception as e:
             print(f"[RAG Utils] Gemini Embeddings Exception: {e}")
 
-    nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+    nvidia_api_key = nvidia_key_var.get() or os.getenv("NVIDIA_API_KEY")
     if nvidia_api_key:
         try:
             url = "https://integrate.api.nvidia.com/v1/embeddings"

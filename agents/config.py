@@ -130,40 +130,59 @@ def make_task_callback(run_id, scenario_type, agent_name):
         print(f"[Callback Logger] Saved {agent_name} output to table '{agent_name}_logs' for run {run_id}.")
     return callback
 
-_gemini_valid = None
+import contextvars
+
+# Context variables for request-specific API keys
+gemini_key_var = contextvars.ContextVar("gemini_key", default=None)
+nvidia_key_var = contextvars.ContextVar("nvidia_key", default=None)
+
+_gemini_valid_cache = {}
 
 def is_gemini_key_valid(api_key):
-    global _gemini_valid
-    if _gemini_valid is not None:
-        return _gemini_valid
+    if not api_key:
+        return False
+    if api_key in _gemini_valid_cache:
+        return _gemini_valid_cache[api_key]
     try:
         import requests
         url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
-            _gemini_valid = True
+            _gemini_valid_cache[api_key] = True
         else:
             print(f"[Config] Gemini API key validation failed ({res.status_code}): {res.json().get('error', {}).get('message', '')}")
-            _gemini_valid = False
+            _gemini_valid_cache[api_key] = False
     except Exception as e:
         print(f"[Config] Exception validating Gemini API key: {e}")
-        _gemini_valid = False
-    return _gemini_valid
+        _gemini_valid_cache[api_key] = False
+    return _gemini_valid_cache[api_key]
 
 def get_llm():
     """
-    Returns an LLM instance initialized with the NVIDIA hosted meta/llama-3.1-70b-instruct model.
+    Returns an LLM instance, prioritizing Gemini API, then NVIDIA, and falling back to Ollama.
     """
-    nvidia_api_key = os.getenv("NVIDIA_API_KEY")
-    if not nvidia_api_key:
-        raise ValueError("NVIDIA_API_KEY environment variable is not set. Please set it in your .env file.")
+    gemini_api_key = gemini_key_var.get() or os.getenv("GEMINI_API_KEY")
+    if gemini_api_key and is_gemini_key_valid(gemini_api_key):
+        return LLM(
+            model="gemini/gemini-1.5-flash",
+            temperature=0.2
+        )
+
+    nvidia_api_key = nvidia_key_var.get() or os.getenv("NVIDIA_API_KEY")
+    if nvidia_api_key:
+        return LLM(
+            model="openai/meta/llama-3.1-70b-instruct",
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=nvidia_api_key,
+            temperature=0.2,
+            max_retries=10
+        )
     
+    # Fallback to Ollama
     return LLM(
-        model="openai/meta/llama-3.1-70b-instruct",
-        base_url="https://integrate.api.nvidia.com/v1",
-        api_key=nvidia_api_key,
-        temperature=0.2,
-        max_retries=10
+        model="ollama/qwen2.5:7b",
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        temperature=0.2
     )
 
 @tool("Query Database")

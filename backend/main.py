@@ -4,7 +4,7 @@ import json
 import uuid
 import datetime
 import asyncio
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -216,12 +216,16 @@ def get_run_details(run_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def execute_crew_background(run_id: str, scenario_type: str, custom_briefing: str):
+def execute_crew_background(run_id: str, scenario_type: str, custom_briefing: str, gemini_key: str = None, nvidia_key: str = None):
     """
     Background worker function running multi-agent execution in a separate thread.
     Updates DB logs as progress completes.
     """
     try:
+        from agents.config import gemini_key_var, nvidia_key_var
+        gemini_key_var.set(gemini_key)
+        nvidia_key_var.set(nvidia_key)
+        
         print(f"[Background Task] Starting CrewAI execution for run {run_id} ({scenario_type})...")
         
         # Load agents
@@ -292,16 +296,19 @@ def execute_crew_background(run_id: str, scenario_type: str, custom_briefing: st
             print(f"[Background Task Error Logging Failure] {db_e}")
 
 @app.post("/api/simulate")
-def run_simulation(req: SimulationRequest, background_tasks: BackgroundTasks):
+def run_simulation(req: SimulationRequest, background_tasks: BackgroundTasks, request: Request):
     """
     Kicks off the Multi-Agent Crew to run in the background, returning a pending run_id immediately.
     """
     try:
+        gemini_key = request.headers.get("x-gemini-api-key")
+        nvidia_key = request.headers.get("x-nvidia-api-key")
+        
         # Generate unique run ID
         run_id = f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
         print(f"[API] Scheduling CrewAI Agents for run {run_id} ({req.scenario_type}) in background...")
         
-        background_tasks.add_task(execute_crew_background, run_id, req.scenario_type, req.custom_briefing)
+        background_tasks.add_task(execute_crew_background, run_id, req.scenario_type, req.custom_briefing, gemini_key, nvidia_key)
         
         return {
             "status": "pending",
@@ -385,17 +392,27 @@ def list_documents():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...)):
     try:
-        from agents.rag_utils import add_document
-        contents = await file.read()
-        doc_id, chunks_count = add_document(file.filename, contents)
-        return {
-            "status": "success",
-            "doc_id": doc_id,
-            "filename": file.filename,
-            "chunks_count": chunks_count
-        }
+        gemini_key = request.headers.get("x-gemini-api-key")
+        nvidia_key = request.headers.get("x-nvidia-api-key")
+        from agents.config import gemini_key_var, nvidia_key_var
+        g_token = gemini_key_var.set(gemini_key)
+        n_token = nvidia_key_var.set(nvidia_key)
+        
+        try:
+            from agents.rag_utils import add_document
+            contents = await file.read()
+            doc_id, chunks_count = add_document(file.filename, contents)
+            return {
+                "status": "success",
+                "doc_id": doc_id,
+                "filename": file.filename,
+                "chunks_count": chunks_count
+            }
+        finally:
+            gemini_key_var.reset(g_token)
+            nvidia_key_var.reset(n_token)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -411,10 +428,20 @@ def remove_document(doc_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/documents/search")
-def search_documents(query: str):
+def search_documents(query: str, request: Request):
     try:
-        from agents.rag_utils import search_briefings_library
-        results = search_briefings_library(query, limit=5)
-        return results
+        gemini_key = request.headers.get("x-gemini-api-key")
+        nvidia_key = request.headers.get("x-nvidia-api-key")
+        from agents.config import gemini_key_var, nvidia_key_var
+        g_token = gemini_key_var.set(gemini_key)
+        n_token = nvidia_key_var.set(nvidia_key)
+        
+        try:
+            from agents.rag_utils import search_briefings_library
+            results = search_briefings_library(query, limit=5)
+            return results
+        finally:
+            gemini_key_var.reset(g_token)
+            nvidia_key_var.reset(n_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

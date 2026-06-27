@@ -112,7 +112,14 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
         setRunData(initialUnified);
         
         // Open WebSocket connection to FastAPI
-        const wsUrl = `ws://127.0.0.1:8000/api/ws/run/${runId}`;
+        const isClient = typeof window !== 'undefined';
+        const wsProtocol = isClient && window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsHost = isClient 
+          ? (window.location.port === '3000'
+              ? `${window.location.hostname}:8000`
+              : window.location.host)
+          : "127.0.0.1:8000";
+        const wsUrl = `${wsProtocol}://${wsHost}/api/ws/run/${runId}`;
         const ws = new WebSocket(wsUrl);
         
         ws.onmessage = (event) => {
