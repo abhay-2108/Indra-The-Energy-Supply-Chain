@@ -66,6 +66,26 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const loadHistoricalRun = async (runId: string) => {
+    try {
+      console.log(`[Context] Loading historical run: ${runId}`);
+      const details = await getRunDetails(runId);
+      setActiveRunId(runId);
+      
+      const steps = {
+        risk_agent: details?.risk_agent,
+        scenario_modeller: details?.scenario_modeller,
+        procurement_orchestrator: details?.procurement_orchestrator,
+        spr_optimisation_agent: details?.spr_optimisation,
+        digital_twin: details?.digital_twin
+      };
+      
+      setRunData(unifyRunData(runId, steps, details?.digital_twin?.result, details?.risk_agent?.scenario_type));
+    } catch (e) {
+      console.error("Failed to load run details", e);
+    }
+  };
+
   // Load runs list on mount
   useEffect(() => {
     async function init() {
@@ -81,7 +101,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       }
     }
     init();
-  }, []);
+  }, [activeRunId]);
 
   const viewLiveRun = () => {
     if (liveRunId && liveRunData) {
@@ -193,25 +213,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const loadHistoricalRun = async (runId: string) => {
-    try {
-      console.log(`[Context] Loading historical run: ${runId}`);
-      const details = await getRunDetails(runId);
-      setActiveRunId(runId);
-      
-      const steps = {
-        risk_agent: details?.risk_agent,
-        scenario_modeller: details?.scenario_modeller,
-        procurement_orchestrator: details?.procurement_orchestrator,
-        spr_optimisation_agent: details?.spr_optimisation,
-        digital_twin: details?.digital_twin
-      };
-      
-      setRunData(unifyRunData(runId, steps, details?.digital_twin?.result, details?.risk_agent?.scenario_type));
-    } catch (e) {
-      console.error("Failed to load run details", e);
-    }
-  };
+
 
   return (
     <SimulationContext.Provider
