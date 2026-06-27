@@ -30,20 +30,23 @@ jobs:
           rm "Indra Architecture Diagram.png" || true
           
           # Inject Hugging Face Space metadata into README.md dynamically
-          cat << 'EOF' > hf_header.txt
----
-title: INDRA Supply Chain Digital Twin
-emoji: 🛡️
-colorFrom: blue
-colorTo: green
-sdk: docker
-app_port: 7860
----
-
-EOF
+          echo "---" > hf_header.txt
+          echo "title: INDRA Supply Chain Digital Twin" >> hf_header.txt
+          echo "emoji: 🛡️" >> hf_header.txt
+          echo "colorFrom: blue" >> hf_header.txt
+          echo "colorTo: green" >> hf_header.txt
+          echo "sdk: docker" >> hf_header.txt
+          echo "app_port: 7860" >> hf_header.txt
+          echo "---" >> hf_header.txt
+          echo "" >> hf_header.txt
           cat hf_header.txt README.md > temp_readme.md
           mv temp_readme.md README.md
           rm hf_header.txt
+          
+          # Verify file contents in output log
+          echo "=== FIRST 10 LINES OF GENERATED README ==="
+          head -n 10 README.md
+          echo "=========================================="
           
           # Stage and commit only the application files
           git add .
