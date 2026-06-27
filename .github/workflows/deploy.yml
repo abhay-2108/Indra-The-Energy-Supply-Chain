@@ -24,4 +24,4 @@ jobs:
           
           # Force push to the Hugging Face Space repository
           # NOTE: Adjust the Space name 'abhay-2108/Indra-The-Energy-Supply-Chain' below if it is different on Hugging Face.
-          git push --force https://raj0120:$HF_TOKEN@huggingface.co/spaces/raj0120/Indra-The-Energy-Supply-Chain main:main
+          git push --force https://raj0120:$HF_TOKEN@huggingface.co/spaces/raj0120/indra main:main
