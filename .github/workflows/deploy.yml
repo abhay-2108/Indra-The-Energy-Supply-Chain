@@ -25,9 +25,12 @@ jobs:
           # Create a clean orphan branch with no history
           git checkout --orphan hf-deploy
           
-          # Remove the binary architecture diagram from the deployment branch
-          git rm --cached "Indra Architecture Diagram.png" || true
-          rm "Indra Architecture Diagram.png" || true
+          # Remove all binary images from the deployment branch to prevent Hugging Face pre-receive hook rejection
+          find . -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.gif" -o -name "*.webp" \) | while read -r file; do
+            echo "Removing binary file: $file"
+            git rm --cached "$file" || true
+            rm -f "$file" || true
+          done
           
           # Inject Hugging Face Space metadata into README.md dynamically
           echo "---" > hf_header.txt
