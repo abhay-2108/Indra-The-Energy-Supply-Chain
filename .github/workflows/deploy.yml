@@ -29,9 +29,25 @@ jobs:
           git rm --cached "Indra Architecture Diagram.png" || true
           rm "Indra Architecture Diagram.png" || true
           
+          # Inject Hugging Face Space metadata into README.md dynamically
+          cat << 'EOF' > hf_header.txt
+---
+title: INDRA Supply Chain Digital Twin
+emoji: 🛡️
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
+EOF
+          cat hf_header.txt README.md > temp_readme.md
+          mv temp_readme.md README.md
+          rm hf_header.txt
+          
           # Stage and commit only the application files
           git add .
-          git commit -m "Deploy clean container to Hugging Face Spaces"
+          git commit -m "Deploy clean container to Hugging Face Spaces with injected metadata"
           
           # Force push the hf-deploy branch to the Hugging Face main branch
           git push --force https://raj0120:$HF_TOKEN@huggingface.co/spaces/raj0120/indra hf-deploy:main
