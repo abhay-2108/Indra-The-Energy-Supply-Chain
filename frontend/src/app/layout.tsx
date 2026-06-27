@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import { SimulationProvider } from "@/context/SimulationContext";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "INDRA - Energy Supply Chain Resilience Platform",
@@ -19,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full bg-slate-950 text-slate-100 dark">
-      <body className={`${inter.className} h-screen flex flex-row overflow-hidden`}>
+      <body className="font-sans h-screen flex flex-row overflow-hidden">
         <SimulationProvider>
           {/* Fixed Navigation Sidebar */}
           <Sidebar />
