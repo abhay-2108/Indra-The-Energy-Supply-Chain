@@ -3,10 +3,10 @@
 venv/
 env/
 ENV/
-bin/
-lib/
-include/
-share/
+/bin/
+/lib/
+/include/
+/share/
 pip-selfcheck.json
 
 # Python Caches & Bytecode
