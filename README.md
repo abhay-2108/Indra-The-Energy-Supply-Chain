@@ -12,6 +12,14 @@ app_port: 7860
 
 ---
 
+## 🚀 Live Deployment
+The application is hosted live on Hugging Face Spaces:
+*   **Direct Frontend Dashboard:** [https://raj0120-indra.hf.space](https://raj0120-indra.hf.space)
+*   **Direct FastAPI Backend API:** [https://raj0120-indra.hf.space/api](https://raj0120-indra.hf.space/api)
+*   **Direct Swagger API Docs:** [https://raj0120-indra.hf.space/docs](https://raj0120-indra.hf.space/docs)
+
+---
+
 ## 📌 The Problem
 India imports over **85% of its crude oil requirements**, leaving the national economy highly vulnerable to geopolitical shocks, port strikes, and maritime conflicts.
 1. **Critical Bottlenecks (SPOFs)**: Key choke points (such as the **Strait of Hormuz** or the **Red Sea**) carry the bulk of India's crude imports. A partial or complete closure of these corridors instantly blocks tankers.
